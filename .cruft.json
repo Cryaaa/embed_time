@@ -1,0 +1,17 @@
+{
+  "template": "https://github.com/dlmbl/example-project",
+  "commit": "211e16768a751b5935f2915c01d57f871bae904a",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "full_name": "DLMBL",
+      "email": "ryan.savill@web.de",
+      "project_name": "embed_time",
+      "project_slug": "embed_time",
+      "project_short_description": "DL@MBL course repository for the embed_time team",
+      "default_python": "3.10",
+      "_template": "https://github.com/dlmbl/example-project"
+    }
+  },
+  "directory": null
+}
