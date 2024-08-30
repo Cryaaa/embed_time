@@ -3,6 +3,7 @@ import pandas as pd
 from torchvision.io import read_image
 from torch.utils.data import Dataset
 import tifffile as tiff
+
 class LiveTLSDataset(Dataset):
     def __init__(
         self, 
@@ -39,8 +40,10 @@ class LiveTLSDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
+            
         if self.target_transform:
             label = self.target_transform(label)
+
         if self.return_metadata:
             metadata = self.annotations[self.metadata_columns].iloc[idx].to_numpy()
             return image, label, metadata
