@@ -1,6 +1,6 @@
 import numpy as np
 from skimage.exposure import rescale_intensity
-
+from torch import from_numpy
 def rescale_bf(img,quantiles = [0.01,0.99]):
     min_max = np.quantile(img,quantiles)
     rescaled = (
@@ -62,3 +62,37 @@ class NormalizeCustom(object):
 
     def __call__(self, sample):
         return complex_normalisation(sample,self.bf_quantiles,self.bra_quantiles)
+
+class SelectRandomTimepoint(object):
+    """select a random timepoint form the time series
+
+    time_dimension: int
+        dimension index of time 
+    """
+
+    def __init__(self, time_dimension):
+        self.td = time_dimension
+
+    def __call__(self, sample):
+        shape = sample.shape
+        random_tp = np.random.randint(0,shape[self.td])
+        slice_objects = [slice(0,shape[i]) if i != self.td else random_tp for i in range(len(shape))]
+        return sample[slice_objects]
+
+class CustomToTensor(object):
+    """Normalise live TLS data with dimesnions t, c, y, x
+
+    Args:
+        bf_quantiles: list
+            lower and upper quantiles for rescaling brightfield images (channel 0)
+            Performed for each image individually
+        bra_quantiles: list
+            lower and upper quantiles for rescaling brachyury images (channel 1)
+            rescaled across the timelapse
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, sample):
+        return from_numpy(sample)
