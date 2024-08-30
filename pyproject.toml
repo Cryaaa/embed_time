@@ -17,5 +17,10 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-    # Add your requirements here
+    "pandas",
+    "tifffile",
+    "pytorch",
+    "torchvision",
+    "scikit-image",
+    "matplotlib"
 ]
