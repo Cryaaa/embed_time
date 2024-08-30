@@ -17,6 +17,7 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
+<<<<<<< HEAD
     "zarr",
     "numpy",
     "torch",
@@ -30,6 +31,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest"
+=======
+<<<<<<< HEAD
+>>>>>>> 562eaa0 (add pyproject commit)
     "pandas",
     "tifffile",
     "torch",
@@ -48,5 +52,20 @@ dev = [
     "torch",
     "torchvision",
     "scikit-image",
+<<<<<<< HEAD
     "matplotlib"
+=======
+    "matplotlib",
+    "tqdm",
+    "pathlib"
+    "torch"
+=======
+    "zarr",
+    "numpy",
+    "json",
+    "pytorch",
+    "matplotlib",
+    "pandas"
+>>>>>>> 6a5fca1 (add pyproject commit)
+>>>>>>> 562eaa0 (add pyproject commit)
 ]
