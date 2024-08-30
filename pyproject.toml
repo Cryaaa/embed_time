@@ -35,5 +35,7 @@ dev = [
     "torch",
     "torchvision",
     "scikit-image",
-    "matplotlib"
+    "matplotlib",
+    "tqdm",
+    "pathlib"
 ]
