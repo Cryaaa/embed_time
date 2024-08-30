@@ -19,8 +19,7 @@ dynamic = ["version"]
 dependencies = [
     "zarr",
     "numpy",
-    "json",
-    "pytorch",
+    "torch",
     "matplotlib",
     "pandas"
 ]

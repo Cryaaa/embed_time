@@ -2,6 +2,7 @@
 *.zarr
 *.tiff
 *.tif
+/notebooks/splits
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -127,3 +128,5 @@ pyrepo
 
 # OS Files
 .DS_Store
+
+# 
