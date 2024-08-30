@@ -32,7 +32,7 @@ dev = [
     "pytest"
     "pandas",
     "tifffile",
-    "pytorch",
+    "torch",
     "torchvision",
     "scikit-image",
     "matplotlib"
