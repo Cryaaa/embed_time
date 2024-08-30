@@ -76,19 +76,13 @@ class SelectRandomTimepoint(object):
     def __call__(self, sample):
         shape = sample.shape
         random_tp = np.random.randint(0,shape[self.td])
-        slice_objects = [slice(0,shape[i]) if i != self.td else random_tp for i in range(len(shape))]
+        slice_objects = [
+            random_tp if i == self.td else slice(0,shape[i]) for i in range(len(shape))
+        ]
         return sample[slice_objects]
 
 class CustomToTensor(object):
-    """Normalise live TLS data with dimesnions t, c, y, x
-
-    Args:
-        bf_quantiles: list
-            lower and upper quantiles for rescaling brightfield images (channel 0)
-            Performed for each image individually
-        bra_quantiles: list
-            lower and upper quantiles for rescaling brachyury images (channel 1)
-            rescaled across the timelapse
+    """Custom ToTensor: works with any shape and does not normalisation
     """
 
     def __init__(self):
