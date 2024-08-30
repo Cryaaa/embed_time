@@ -17,5 +17,10 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-    # Add your requirements here
+    "zarr",
+    "numpy",
+    "json",
+    "pytorch",
+    "matplotlib",
+    "pandas"
 ]
