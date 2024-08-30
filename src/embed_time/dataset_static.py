@@ -2,14 +2,17 @@ import os
 import numpy as np
 import zarr
 import json
+from pathlib import Path
 import torch
 from torch.utils.data import Dataset, DataLoader
 
+
 class ZarrCellDataset(Dataset):
-    def __init__(self, parent_dir, gene_name, barcode_name, channels=[0, 1, 2, 3],
+    def __init__(self, parent_dir:Path, data_split:Path, channels=[0, 1, 2, 3],
                  cell_cycle_stages="interphase", transform="masks", crop_size=None):
-        self.parent_dir = parent_dir
+        self.parent_dir = Path(parent_dir)
         self.gene_name = gene_name
+        self.genes = list(self.parent_dir.glob("*.zarr"))
         self.barcode_name = barcode_name
         self.channels = channels
         self.cell_cycle_stages = cell_cycle_stages
