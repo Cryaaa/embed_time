@@ -50,7 +50,7 @@ class ConvBlock(torch.nn.Module):
         return self.conv_pass(x)
 
 
-class ConvolutionalEncoder(nn.Module):
+class UNetEncoder(nn.Module):
     def __init__(
             self, 
             in_channels: int, 
@@ -73,7 +73,7 @@ class ConvolutionalEncoder(nn.Module):
         self.fmap_inc_factor = fmap_inc_factor
         self.padding = padding
         self.n_convs = n_convs
-        super(ConvolutionalEncoder, self).__init__()
+        super(UNetEncoder, self).__init__()
         self.downsample = nn.MaxPool2d(self.downsample_factor,self.downsample_factor)
         self.convs = nn.ModuleList()
         # SOLUTION 6.2A: Initialize list here
@@ -136,27 +136,11 @@ class ConvolutionalEncoder(nn.Module):
             x = self.convs[level](x)
             x = self.downsample(x)
         x = self.convs[-1](x)
+        print("shape after convs encoder", x.shape)
         x = x.view(-1,self.fc_layer_len)
         return self.fc1(x), self.fc2(x)
-    
-if __name__ == "__main__":
-    shape = (499,6173)
-    depth = 6
-    encoder = ConvolutionalEncoder(
-        in_channels=1,
-        in_spatial_shape=shape,
-        kernel_size=3,
-        n_fmaps=8,
-        padding="valid",
-        depth =depth,
-        z_dim=5,
-    )
-    example_tensor = torch.zeros(2,1,shape[0],shape[1])
-    out= encoder(example_tensor)
-    print(out[0].shape,out[1].shape)
-    #print(encoder.compute_final_layers())
 
-class ConvolutionalDecoder(nn.Module):
+class UNetDecoder(nn.Module):
     def __init__(
             self, 
             in_channels: int, 
@@ -168,7 +152,8 @@ class ConvolutionalDecoder(nn.Module):
             padding: str = "same",
             downsample_factor: int = 2,
             kernel_size: int = 3,
-            n_convs: int = 2
+            n_convs: int = 2,
+            upsample_mode = 'bilinear',
         ):
         self.depth = depth
         self.num_fmaps = n_fmaps
@@ -179,29 +164,29 @@ class ConvolutionalDecoder(nn.Module):
         self.fmap_inc_factor = fmap_inc_factor
         self.padding = padding
         self.n_convs = n_convs
-        super(ConvolutionalEncoder, self).__init__()
-        self.downsample = nn.MaxPool2d(self.downsample_factor,self.downsample_factor)
+        super(UNetDecoder, self).__init__()
+
+        self.upsample  = torch.nn.Upsample(
+            scale_factor=self.downsample_factor,
+            mode=upsample_mode,
+        )
         self.convs = nn.ModuleList()
 
-        # right convolutional passes
-        self.right_convs = torch.nn.ModuleList()
-        # SOLUTION 6.2B: Initialize list here
-        for level in range(self.depth - 1):
-            fmaps_in, fmaps_out = self.compute_fmaps_decoder(level)
-            self.right_convs.append(
-                ConvBlock(
-                    fmaps_in,
-                    fmaps_out,
-                    self.kernel_size,
-                    self.padding,
-                )
+        for level in range(self.depth):
+            fmaps_in, fmaps_out = self.compute_fmaps_encoder(level)
+            self.convs.append(
+                ConvBlock(fmaps_out,fmaps_in, self.kernel_size, self.padding)
             )
+        
+        fc_layer_len = self.compute_final_layers()
+ 
+        self.shape_first_img = (self.compute_fmaps_encoder(depth-1)[1], *self.compute_spatial_shape(depth-1))
+        self.fc1 = nn.Linear(in_features=z_dim,out_features=fc_layer_len)
 
-    def compute_fmaps_decoder(self, level: int) -> tuple[int, int]:
-        """Compute the number of input and output feature maps for a conv block
-        at a given level of the UNet decoder (right side). Note:
-        The bottom layer (depth - 1) is considered an "encoder" conv pass,
-        so this function is only valid up to depth - 2.
+
+    def compute_fmaps_encoder(self, level: int) -> tuple[int, int]:
+        """Compute the number of input and output feature maps for
+        a conv block at a given level of the UNet encoder (left side).
 
         Args:
             level (int): The level of the U-Net which we are computing
@@ -209,13 +194,81 @@ class ConvolutionalDecoder(nn.Module):
             the first downsampled layer, and level=depth - 1 is the bottom layer.
 
         Output (tuple[int, int]): The number of input and output feature maps
-            of the decoder convolutional pass in the given level.
+            of the encoder convolutional pass in the given level.
         """
-        # SOLUTION 6.1B: Implement this function
-        fmaps_out = self.num_fmaps * self.fmap_inc_factor ** (level)
-        concat_fmaps = self.compute_fmaps_encoder(level)[
-            1
-        ]  # The channels that come from the skip connection
-        fmaps_in = concat_fmaps + self.num_fmaps * self.fmap_inc_factor ** (level + 1)
+        # SOLUTION 6.1A: Implement this function
+        if level == 0:
+            fmaps_in = self.in_channels
+        else:
+            fmaps_in = self.num_fmaps * self.fmap_inc_factor ** (level - 1)
 
+        fmaps_out = self.num_fmaps * self.fmap_inc_factor**level
         return fmaps_in, fmaps_out
+    
+    def compute_spatial_shape(self, level: int) -> tuple[int, int]:
+        spatial_shape = np.array(self.in_spatial_shape)
+        if level == 0:
+            if self.padding == "same":
+                return spatial_shape
+            
+            # 2 convolutions and 2 sizes 
+            spatial_shape = spatial_shape - self.n_convs * (2 * (self.kernel_size //2))
+            return spatial_shape
+
+        if self.padding == "same":
+            spatial_shape = (np.array(self.compute_spatial_shape(level-1))//(self.downsample_factor)) 
+        else:
+            spatial_shape = self.compute_spatial_shape(level-1)
+            spatial_shape = spatial_shape // self.downsample_factor
+            spatial_shape = spatial_shape - self.n_convs * (2 * (self.kernel_size //2))
+        return spatial_shape
+    
+    def compute_final_layers(self):
+        spatial_dims_final = self.compute_spatial_shape(self.depth-1)
+        num_fmaps_final = self.compute_fmaps_encoder(self.depth-1)
+        return num_fmaps_final[1] * np.prod(spatial_dims_final)
+
+    
+    def forward(self, z):
+        z = F.relu(self.fc1(z))
+        #print(self.shape_first_img)
+        x = z.view(-1, *self.shape_first_img)
+        print("after unflattening",x.shape)
+        for level in range(depth-1,0,-1):
+            print("did upsample and conv")
+            #print(x.shape)
+            x = self.upsample(x)
+            #print("aft",x.shape)
+            x = self.convs[level](x)
+            
+        return x
+
+
+if __name__ == "__main__":
+    shape = (512,512)
+    depth = 2
+    encoder = UNetEncoder(
+        in_channels=1,
+        in_spatial_shape=shape,
+        kernel_size=3,
+        n_fmaps=8,
+        padding="valid",
+        depth =depth,
+        z_dim=5,
+    )
+
+    decoder = UNetDecoder(
+        in_channels=1,
+        in_spatial_shape=shape,
+        kernel_size=3,
+        n_fmaps=8,
+        padding="valid",
+        depth =depth,
+        z_dim=5,
+    )
+    example_tensor = torch.zeros(2,1,shape[0],shape[1])
+    mu,smth= encoder(example_tensor)
+    print(encoder.compute_fmaps_encoder(depth-1)[1],*encoder.compute_spatial_shape(depth-1))
+    decode = decoder(mu)
+    print(decode.shape)
+
