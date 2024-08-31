@@ -137,7 +137,7 @@ class UNetEncoder(nn.Module):
             x = self.convs[level](x)
             x = self.downsample(x)
         x = self.convs[-1](x)
-        print("shape after convs encoder", x.shape)
+        # print("shape after convs encoder", x.shape)
         x = x.view(-1,self.fc_layer_len)
         return self.fc1(x), self.fc2(x)
 
@@ -238,9 +238,9 @@ class UNetDecoder(nn.Module):
         z = F.relu(self.fc1(z))
         #print(self.shape_first_img)
         x = z.view(-1, *self.shape_first_img)
-        print("after unflattening",x.shape)
-        for level in range(depth-1,0,-1):
-            print("did upsample and conv")
+        # print("after unflattening",x.shape)
+        for level in range(self.depth-1,0,-1):
+            # print("did upsample and conv")
             #print(x.shape)
             x = self.upsample(x)
             #print("aft",x.shape)
@@ -275,7 +275,7 @@ if __name__ == "__main__":
     )
     example_tensor = torch.zeros(2,in_channels,shape[0],shape[1])
     mu,smth= encoder(example_tensor)
-    print(encoder.compute_fmaps_encoder(depth-1)[1],*encoder.compute_spatial_shape(depth-1))
+    # print(encoder.compute_fmaps_encoder(depth-1)[1],*encoder.compute_spatial_shape(depth-1))
     decode = decoder(mu)
-    print(decode.shape)
+    # print(decode.shape)
 
