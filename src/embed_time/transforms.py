@@ -100,7 +100,7 @@ class SelectRandomTPNumpy(object):
         random_tp = np.random.randint(0,shape[self.td])
         
         out = np.take(sample,[random_tp],axis=self.td).squeeze(self.td)
-        print(out.shape)
+        # print(out.shape)
         return out
 
 class CustomToTensor(object):
