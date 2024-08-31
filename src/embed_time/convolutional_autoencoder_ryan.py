@@ -156,5 +156,66 @@ if __name__ == "__main__":
     print(out[0].shape,out[1].shape)
     #print(encoder.compute_final_layers())
 
+class ConvolutionalDecoder(nn.Module):
+    def __init__(
+            self, 
+            in_channels: int, 
+            n_fmaps: int,
+            depth: int, 
+            in_spatial_shape:tuple, 
+            z_dim: int,
+            fmap_inc_factor=2,
+            padding: str = "same",
+            downsample_factor: int = 2,
+            kernel_size: int = 3,
+            n_convs: int = 2
+        ):
+        self.depth = depth
+        self.num_fmaps = n_fmaps
+        self.in_channels = in_channels
+        self.in_spatial_shape = in_spatial_shape
+        self.kernel_size = kernel_size
+        self.downsample_factor = downsample_factor
+        self.fmap_inc_factor = fmap_inc_factor
+        self.padding = padding
+        self.n_convs = n_convs
+        super(ConvolutionalEncoder, self).__init__()
+        self.downsample = nn.MaxPool2d(self.downsample_factor,self.downsample_factor)
+        self.convs = nn.ModuleList()
 
+        # right convolutional passes
+        self.right_convs = torch.nn.ModuleList()
+        # SOLUTION 6.2B: Initialize list here
+        for level in range(self.depth - 1):
+            fmaps_in, fmaps_out = self.compute_fmaps_decoder(level)
+            self.right_convs.append(
+                ConvBlock(
+                    fmaps_in,
+                    fmaps_out,
+                    self.kernel_size,
+                    self.padding,
+                )
+            )
 
+    def compute_fmaps_decoder(self, level: int) -> tuple[int, int]:
+        """Compute the number of input and output feature maps for a conv block
+        at a given level of the UNet decoder (right side). Note:
+        The bottom layer (depth - 1) is considered an "encoder" conv pass,
+        so this function is only valid up to depth - 2.
+
+        Args:
+            level (int): The level of the U-Net which we are computing
+            the feature maps for. Level 0 is the input level, level 1 is
+            the first downsampled layer, and level=depth - 1 is the bottom layer.
+
+        Output (tuple[int, int]): The number of input and output feature maps
+            of the decoder convolutional pass in the given level.
+        """
+        # SOLUTION 6.1B: Implement this function
+        fmaps_out = self.num_fmaps * self.fmap_inc_factor ** (level)
+        concat_fmaps = self.compute_fmaps_encoder(level)[
+            1
+        ]  # The channels that come from the skip connection
+        fmaps_in = concat_fmaps + self.num_fmaps * self.fmap_inc_factor ** (level + 1)
+
+        return fmaps_in, fmaps_out
