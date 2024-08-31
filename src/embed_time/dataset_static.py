@@ -15,16 +15,9 @@ class ZarrCellDataset(Dataset):
         self.normalizations = normalizations
         self.interpolations = interpolations
 
-        # Load the CSV file
         self.data_info = pd.read_csv(csv_file)
-
-        # Split the data into train, val, and test
         self.data_info = self.data_info[self.data_info['split'] == split]
-
-        # Group the data by gene, barcode, and stage
         self.grouped_data = self.data_info.groupby(['gene', 'barcode', 'stage'])
-
-        # Load all zarr data
         self.zarr_data = self._load_all_zarr_data()
 
     def __len__(self):
@@ -45,6 +38,9 @@ class ZarrCellDataset(Dataset):
         original_image = original_image[self.channels]  # Select specified channels
         cell_mask = zarr_group['cells'][cell_idx]
         nuclei_mask = zarr_group['nuclei'][cell_idx]
+
+        mean_channel = np.mean(original_image, axis=(-2, -1))
+        std_channel = np.std(original_image, axis=(1, 2))
 
         # Apply mask and normalization
         cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask)
@@ -75,6 +71,7 @@ class ZarrCellDataset(Dataset):
                 raise ValueError(f"Zarr file not found: {zarr_file}")
             zarr_data[(gene, barcode, stage)] = zarr.open(zarr_file, mode='r')
         return zarr_data
+    
       
     def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask):
         if self.mask == "masks":
@@ -119,6 +116,7 @@ class ZarrCellDataset_specific(Dataset):
 
         self.zarr_data = self._load_zarr_data()
         self.original_images, self.cell_masks, self.nuclei_masks = self._load_images_and_masks()
+        self.mean_channel, self.std_channel = self._compute_mean_std()
 
     def __len__(self):
         return len(self.original_images)
@@ -128,10 +126,13 @@ class ZarrCellDataset_specific(Dataset):
         cell_mask = self.cell_masks[idx]
         nuclei_mask = self.nuclei_masks[idx]
 
-        # Apply mask and normalization
-        cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask)
+        normalized_mean = np.mean(self.mean_channel, axis=0)
+        normalized_std = np.mean(self.std_channel, axis=0)
 
-        # Apply interpolations
+        print(normalized_mean, normalized_std)
+
+        cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask, 
+                                                                  normalized_mean, normalized_std)
         cell_image, nuclei_image = self._apply_interpolation(cell_image, nuclei_image)
 
         sample = {
@@ -175,8 +176,13 @@ class ZarrCellDataset_specific(Dataset):
         nuclei_masks = np.expand_dims(nuclei_masks, 1)
 
         return original_images, cell_masks, nuclei_masks
+    
+    def _compute_mean_std(self):
+        mean_channel = np.mean(self.original_images, axis=(-2, -1))
+        std_channel = np.std(self.original_images, axis=(-2, -1))
+        return mean_channel, std_channel
 
-    def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask):
+    def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask, mean, std):
         if self.mask == "masks":
             cell_image = original_image * cell_mask
             nuclei_image = original_image * nuclei_mask
@@ -187,6 +193,7 @@ class ZarrCellDataset_specific(Dataset):
 
         if self.normalizations:
             if isinstance(self.normalizations, list):
+                print("it is a list")
                 for normalization in self.normalizations:
                     cell_image = normalization(cell_image)
                     nuclei_image = normalization(nuclei_image)
