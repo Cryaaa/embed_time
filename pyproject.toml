@@ -17,9 +17,6 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-<<<<<<< HEAD
-    "torch"
-=======
     "zarr",
     "numpy",
     "torch",
@@ -27,7 +24,6 @@ dependencies = [
     "pandas",
     "torchview",
     "graphviz"
->>>>>>> static_dev
 ]
 [project.optional-dependencies]
 dev = [
