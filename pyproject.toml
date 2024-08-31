@@ -25,6 +25,7 @@ dependencies = [
     "torchview",
     "graphviz", 
     "torchview"
+    "torch"
 ]
 [project.optional-dependencies]
 dev = [
