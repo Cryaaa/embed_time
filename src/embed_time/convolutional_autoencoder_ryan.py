@@ -137,7 +137,7 @@ class ConvolutionalEncoder(nn.Module):
             x = self.downsample(x)
         x = self.convs[-1](x)
         x = x.view(-1,self.fc_layer_len)
-        return self.fc1(x),self.fc2(x)
+        return self.fc1(x), self.fc2(x)
     
 if __name__ == "__main__":
     shape = (499,6173)
