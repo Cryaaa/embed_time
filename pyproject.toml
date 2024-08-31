@@ -17,5 +17,9 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
-    # Add your requirements here
+    "torch"
+]
+[project.optional-dependencies]
+dev = [
+    "pytest"
 ]
