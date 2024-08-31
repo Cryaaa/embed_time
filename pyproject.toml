@@ -23,6 +23,7 @@ dependencies = [
     "matplotlib",
     "pandas",
     "torchview",
+<<<<<<< HEAD
     "graphviz", 
     "torchview"
     "torch"
@@ -40,7 +41,11 @@ dev = [
     "tqdm",
     "pathlib"
     "torch"
+=======
+    "graphviz"
+>>>>>>> a704674 (fixing some rebase errors)
 ]
+
 [project.optional-dependencies]
 dev = [
     "pytest"
@@ -59,11 +64,4 @@ dev = [
     "pytorch",
     "matplotlib",
     "pandas"
-]
-[project.optional-dependencies]
-dev = [
-    "pytest"
-    "json",
-    "pytorch"
-    
 ]
