@@ -3,9 +3,14 @@
 *.tiff
 *.tif
 <<<<<<< HEAD
+<<<<<<< HEAD
 **/data/
 **/mnist_data/
 =======
+=======
+**/data/
+**/mnist_data/
+>>>>>>> d7cc5ee (notebooks with code to read neuromast dataset)
 /notebooks/splits
 >>>>>>> static_dev
 
@@ -137,4 +142,7 @@ pyrepo
 =======
 
 # 
+<<<<<<< HEAD
 >>>>>>> static_dev
+=======
+>>>>>>> d7cc5ee (notebooks with code to read neuromast dataset)
