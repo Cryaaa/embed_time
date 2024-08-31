@@ -2,7 +2,7 @@
 This script was used to train the pre-trained model weights that were given as an option during the exercise.
 """
 
-from embed_time.dataloader import LiveTLSDataset
+from embed_time.dataloader_rs import LiveTLSDataset
 from embed_time.model import Encoder, Decoder, VAE
 import torch
 from torch.utils.data import DataLoader
@@ -14,7 +14,7 @@ import skimage.io as io
 import torchvision.transforms as trans
 from torchvision.transforms import v2
 from embed_time.transforms import CustomToTensor, SelectRandomTimepoint
-from embed_time.dataloader import LiveTLSDataset
+from embed_time.dataloader_rs import LiveTLSDataset
 
 
 # return reconstruction error + KL divergence losses
