@@ -63,4 +63,7 @@ dev = [
 [project.optional-dependencies]
 dev = [
     "pytest"
+    "json",
+    "pytorch"
+    
 ]
