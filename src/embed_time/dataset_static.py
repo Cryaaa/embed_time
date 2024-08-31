@@ -20,6 +20,9 @@ class ZarrCellDataset(Dataset):
         self.grouped_data = self.data_info.groupby(['gene', 'barcode', 'stage'])
         self.zarr_data = self._load_all_zarr_data()
 
+        self._mean = None
+        self._std = None
+
     def __len__(self):
         return len(self.data_info)
 
@@ -38,9 +41,6 @@ class ZarrCellDataset(Dataset):
         original_image = original_image[self.channels]  # Select specified channels
         cell_mask = zarr_group['cells'][cell_idx]
         nuclei_mask = zarr_group['nuclei'][cell_idx]
-
-        mean_channel = np.mean(original_image, axis=(-2, -1))
-        std_channel = np.std(original_image, axis=(1, 2))
 
         # Apply mask and normalization
         cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask)
@@ -62,6 +62,18 @@ class ZarrCellDataset(Dataset):
         }
 
         return sample
+    
+    @property
+    def mean(self):
+        if self._mean is None:
+            self._mean = self._compute_mean()
+        return self._mean
+    
+    @property
+    def std(self):
+        if self._std is None:
+            self._std = self._compute_std()
+        return self._std
 
     def _load_all_zarr_data(self):
         zarr_data = {}
@@ -72,13 +84,43 @@ class ZarrCellDataset(Dataset):
             zarr_data[(gene, barcode, stage)] = zarr.open(zarr_file, mode='r')
         return zarr_data
     
+    def _compute_mean(self):
+        total_sum = np.zeros(len(self.channels))
+        total_count = 0
+        for batch in self:
+            image = batch['original_image']
+            total_sum += image.sum(axis=(1, 2))
+            total_count += image.shape[1] * image.shape[2]
+        mean = total_sum / total_count
+        return mean
+    
+    def _compute_std(self):
+        sum_squared_diff = np.zeros(len(self.channels))
+        total_count = 0
+        for batch in self:
+            image = batch['original_image']
+            sum_squared_diff += ((image - self.mean[:, None, None]) ** 2).sum(
+                axis=(1, 2)
+            )
+            total_count += image.shape[1] * image.shape[2]
+
+        variance = sum_squared_diff / total_count
+        std = np.sqrt(variance)
+        return std
       
     def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask):
         if self.mask == "masks":
-            cell_image = original_image * cell_mask
-            nuclei_image = original_image * nuclei_mask
+            fill = self._mean[:, None, None] if self._mean is not None else 0
+            cell_image = np.where(cell_mask, original_image, fill)
+            nuclei_image = np.where(nuclei_mask, original_image, fill)
         else:
-            raise ValueError("Only 'masks' is supported for mask")
+            print("Only 'masks' is supported for mask, passing unmasked images")
+            cell_image = original_image
+            nuclei_image = original_image
+
+        if self._mean is not None and self._std is not None:
+            cell_image = (cell_image - self._mean[:, None, None]) / self._std[:, None, None]
+            nuclei_image = (nuclei_image - self._mean[:, None, None]) / self._std[:, None, None]
         cell_image = torch.from_numpy(cell_image).float()
         nuclei_image = torch.from_numpy(nuclei_image).float()
 
@@ -113,10 +155,11 @@ class ZarrCellDataset_specific(Dataset):
         self.mask = mask
         self.normalizations = normalizations
         self.interpolations = interpolations
+        self._mean = None
+        self._std = None
 
         self.zarr_data = self._load_zarr_data()
         self.original_images, self.cell_masks, self.nuclei_masks = self._load_images_and_masks()
-        self.mean_channel, self.std_channel = self._compute_mean_std()
 
     def __len__(self):
         return len(self.original_images)
@@ -125,14 +168,8 @@ class ZarrCellDataset_specific(Dataset):
         original_image = self.original_images[idx]
         cell_mask = self.cell_masks[idx]
         nuclei_mask = self.nuclei_masks[idx]
-
-        normalized_mean = np.mean(self.mean_channel, axis=0)
-        normalized_std = np.mean(self.std_channel, axis=0)
-
-        print(normalized_mean, normalized_std)
-
-        cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask, 
-                                                                  normalized_mean, normalized_std)
+        
+        cell_image, nuclei_image = self._apply_mask_normalization(original_image, cell_mask, nuclei_mask)
         cell_image, nuclei_image = self._apply_interpolation(cell_image, nuclei_image)
 
         sample = {
@@ -146,6 +183,18 @@ class ZarrCellDataset_specific(Dataset):
             'nuclei_image': nuclei_image
         }
         return sample
+    
+    @property
+    def mean(self):
+        if self._mean is None:
+            self._mean = self._compute_mean()
+        return self._mean
+    
+    @property
+    def std(self):
+        if self._std is None:
+            self._std = self._compute_std()
+        return self._std
 
     def _load_zarr_data(self):
         zarr_file_gene = os.path.join(self.parent_dir, f"{self.gene_name}.zarr")
@@ -177,23 +226,50 @@ class ZarrCellDataset_specific(Dataset):
 
         return original_images, cell_masks, nuclei_masks
     
-    def _compute_mean_std(self):
-        mean_channel = np.mean(self.original_images, axis=(-2, -1))
-        std_channel = np.std(self.original_images, axis=(-2, -1))
-        return mean_channel, std_channel
+    def _compute_mean(self):
+        total_sum = np.zeros(len(self.channels))
+        total_count = 0
+        for batch in self:
+            image = batch['original_image']
+            total_sum += image.sum(axis=(1, 2))
+            total_count += image.shape[1] * image.shape[2]
+        mean = total_sum / total_count
+        return mean
+    
+    def _compute_std(self):
+        sum_squared_diff = np.zeros(len(self.channels))
+        total_count = 0
+        for batch in self:
+            image = batch['original_image']
+            sum_squared_diff += ((image - self.mean[:, None, None]) ** 2).sum(
+                axis=(1, 2)
+            )
+            total_count += image.shape[1] * image.shape[2]
 
-    def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask, mean, std):
+        variance = sum_squared_diff / total_count
+        std = np.sqrt(variance)
+        return std
+    
+    def _apply_mask_normalization(self, original_image, cell_mask, nuclei_mask):
+
         if self.mask == "masks":
-            cell_image = original_image * cell_mask
-            nuclei_image = original_image * nuclei_mask
+            fill = self._mean[:, None, None] if self._mean is not None else 0
+            cell_image = np.where(cell_mask, original_image, fill)
+            nuclei_image = np.where(nuclei_mask, original_image, fill)
         else:
-            raise ValueError("Only 'masks' is supported for mask")
+            print("Only 'masks' is supported for mask, passing unmasked images")
+            cell_image = original_image
+            nuclei_image = original_image
+
+        if self._mean is not None and self._std is not None:
+            cell_image = (cell_image - self._mean[:, None, None]) / self._std[:, None, None]
+            nuclei_image = (nuclei_image - self._mean[:, None, None]) / self._std[:, None, None]
+
         cell_image = torch.from_numpy(cell_image).float()
         nuclei_image = torch.from_numpy(nuclei_image).float()
 
         if self.normalizations:
             if isinstance(self.normalizations, list):
-                print("it is a list")
                 for normalization in self.normalizations:
                     cell_image = normalization(cell_image)
                     nuclei_image = normalization(nuclei_image)
