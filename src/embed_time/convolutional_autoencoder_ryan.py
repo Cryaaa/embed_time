@@ -108,6 +108,7 @@ class UNetEncoder(nn.Module):
         return fmaps_in, fmaps_out
     
     def compute_spatial_shape(self, level: int) -> tuple[int, int]:
+        # TODO Add warning when shape is odd before maxpool
         spatial_shape = np.array(self.in_spatial_shape)
         if level == 0:
             if self.padding == "same":
@@ -154,6 +155,7 @@ class UNetDecoder(nn.Module):
             kernel_size: int = 3,
             n_convs: int = 2,
             upsample_mode = 'bilinear',
+            final_activation = nn.Sigmoid
         ):
         self.depth = depth
         self.num_fmaps = n_fmaps
@@ -182,7 +184,10 @@ class UNetDecoder(nn.Module):
  
         self.shape_first_img = (self.compute_fmaps_encoder(depth-1)[1], *self.compute_spatial_shape(depth-1))
         self.fc1 = nn.Linear(in_features=z_dim,out_features=fc_layer_len)
-
+        self.final_conv = nn.Sequential(
+            nn.Conv2d(in_channels=n_fmaps,out_channels=in_channels,kernel_size=kernel_size,padding=padding),
+            final_activation()
+        )
 
     def compute_fmaps_encoder(self, level: int) -> tuple[int, int]:
         """Compute the number of input and output feature maps for
@@ -240,33 +245,35 @@ class UNetDecoder(nn.Module):
             x = self.upsample(x)
             #print("aft",x.shape)
             x = self.convs[level](x)
-            
+        # final conv
+        x = self.final_conv(x)
         return x
 
 
 if __name__ == "__main__":
     shape = (512,512)
-    depth = 2
+    depth = 4
+    in_channels = 10
     encoder = UNetEncoder(
-        in_channels=1,
+        in_channels=in_channels,
         in_spatial_shape=shape,
         kernel_size=3,
         n_fmaps=8,
-        padding="valid",
+        padding="same",
         depth =depth,
         z_dim=5,
     )
 
     decoder = UNetDecoder(
-        in_channels=1,
+        in_channels=in_channels,
         in_spatial_shape=shape,
         kernel_size=3,
         n_fmaps=8,
-        padding="valid",
+        padding="same",
         depth =depth,
         z_dim=5,
     )
-    example_tensor = torch.zeros(2,1,shape[0],shape[1])
+    example_tensor = torch.zeros(2,in_channels,shape[0],shape[1])
     mu,smth= encoder(example_tensor)
     print(encoder.compute_fmaps_encoder(depth-1)[1],*encoder.compute_spatial_shape(depth-1))
     decode = decoder(mu)
