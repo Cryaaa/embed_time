@@ -1,4 +1,6 @@
+from embed_time.model import ResNet2D
 from torch.utils.data import DataLoader, Dataset
+from torchvision.transforms import v2
 from typing import List
 import csv
 import cv2
@@ -9,7 +11,6 @@ import os
 import re
 import torch
 import torch.nn as nn
-import torchvision.transforms as transforms
 import tqdm
 
 
@@ -24,13 +25,15 @@ class PumpingDataset(Dataset):
         self,
         dataset_names,
         chunk_size,
-        cycle_size
+        cycle_size,
+        device
     ):
         self.dataset_names = dataset_names
         self.chunk_size = chunk_size
         self.cycle_size = cycle_size
-        # TODO: chunk + normalize data beforehand and store in new directories
-        self.x_path = "/home/alicia/store1/alicia/pumping/raw_data"
+        self.device = torch.device(device)
+
+        self.x_path = "/home/alicia/store1/alicia/pumping/unaug_data"
         self.y_path = "/home/alicia/store1/alicia/pumping/pumping_labels"
 
         self.images, self.label_embeddings, self.labels = self.process()
@@ -61,14 +64,14 @@ class PumpingDataset(Dataset):
 
             if os.path.exists(h5_file) and os.path.exists(csv_file):
                 x, label_embeds = self.assemble_single(dataset_name, h5_file, csv_file)
-                print(f"image shape: {x.shape}, label len: {len(label_embeds)}")
+
                 chunked_frames, chunked_embeds, labels = self.chunk_single_ds(
                         x,
                         label_embeds,
                         ds_idx,
                         labels
                 )
-                print(f"num chunked frames: {len(chunked_frames)}")
+
                 images += chunked_frames
                 label_embeddings += chunked_embeds
 
@@ -85,22 +88,30 @@ class PumpingDataset(Dataset):
             end_frame = start_frame + self.chunk_size
 
             if end_frame < num_frames - 1:
-                chunk_x = x[start_frame:end_frame] / 255
+                chunk_x = x[start_frame:end_frame]
                 chunk_y = label_embeds[start_frame:end_frame]
-                #print(f"chunked labels: {chunk_y.shape}")
+
                 chunked_frames.append(chunk_x)
                 chunked_embeds.append(chunk_y)
                 labels.append((ds_idx, chunk_idx))
 
         return chunked_frames, chunked_embeds, labels
 
-    def assemble_single(self, dataset_name, h5_file, csv_file):
+    def assemble_single(
+            self,
+            dataset_name,
+            h5_file,
+            csv_file,
+    ):
 
         """ find the time frames where click events happen """
 
         with h5py.File(h5_file, "r") as f:
-            # TODO: coarse crop
-            x = torch.tensor(f["img_nir"][:, 174:558, 292:676], dtype=torch.float32)
+            x = torch.tensor(
+                    f["img_nir"][:],
+                    dtype=torch.float32,
+                    device=self.device
+            )
 
         with open(csv_file, "r") as f:
             reader = csv.reader(f)
@@ -110,11 +121,9 @@ class PumpingDataset(Dataset):
         num_frames = x.shape[0]
         clicks = torch.zeros(num_frames, dtype=torch.float32)
         pump_times = [time for time in pump_times if time > 0]
-        print(f"num clicks: {len(pump_times)}")
         clicks[pump_times] = 1
         label_embeds = self.embed(clicks, num_frames)
-        print(f"label_embeds shape: {label_embeds.shape}")
-        # TODO: finer crop and augment x
+
         return x, label_embeds
 
     def embed(self, clicks, num_frames):
@@ -125,7 +134,11 @@ class PumpingDataset(Dataset):
             chunk_size (int): number of frames contained in one sample
             cycle_size (int): distance from the current time frame for embedding
         """
-        embedded_labels = torch.zeros((num_frames, 2), dtype=torch.float32)
+        embedded_labels = torch.zeros(
+                (num_frames, 2),
+                dtype=torch.float32,
+                device=self.device
+        )
         embedded_labels[:, 0] = 0
         embedded_labels[:, 1] = -1
 
@@ -145,34 +158,34 @@ class PumpingDataset(Dataset):
                     y1 = np.cos(angle)
                     y2 = np.sin(angle)
 
-                embedded_labels[start + i] = torch.tensor([y1, y2], dtype=torch.float32)
+                embedded_labels[start + i] = torch.tensor(
+                        [y1, y2],
+                        dtype=torch.float32,
+                        device=self.device
+                )
 
         return embedded_labels
 
 
-class CentralCrop(torch.nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        _, _, width, height = x.shape
-        start_x = width // 2 - 128
-        start_y = height // 2 - 128
-
-        return 2 * x[:, :, start_x:start_x+256, start_y:start_y+256] - 1
-
-
 if __name__ == "__main__":
 
+    device = 'cuda:2'
+    cycle_size = 3
+    chunk_size = 10
+    batch_size = 32
+    input_channels = chunk_size
+    output_classes = chunk_size * 2
+
     pumping_dataset = PumpingDataset(
-        dataset_names=["2022-06-28-01", "2023-01-23-28"],
-        chunk_size=120,
-        cycle_size=3)
+        dataset_names=["2022-06-28-01"],
+        chunk_size=chunk_size,
+        cycle_size=cycle_size,
+        device=device
+    )
 
     dataloader = torch.utils.data.DataLoader(
         pumping_dataset,
-        batch_size=4,
+        batch_size=batch_size,
         shuffle=True,
     )
 
@@ -180,3 +193,14 @@ if __name__ == "__main__":
         print(f"chunked x: {x.shape}")
         print(f"chunked labels: {labels.shape}")
         print(f"item index: {item_idx}")
+
+        model = ResNet2D(
+                output_classes=output_classes,
+                input_channels=input_channels,
+                batch_size=batch_size,
+        ).to(device)
+        out = model(x)
+        print(out)
+        print(out.shape)
+        break
+
