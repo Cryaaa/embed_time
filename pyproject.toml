@@ -17,9 +17,25 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
+    "pandas",
+    "tifffile",
+    "torch",
+    "torchvision",
+    "scikit-image",
+    "matplotlib",
+    "tqdm",
+    "pathlib"
     "torch"
 ]
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pandas",
+    "tifffile",
+    "torch",
+    "torchvision",
+    "scikit-image",
+    "matplotlib",
+    "tqdm",
+    "pathlib"
+    "torch"
 ]
