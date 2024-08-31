@@ -2,8 +2,12 @@
 *.zarr
 *.tiff
 *.tif
+<<<<<<< HEAD
 **/data/
 **/mnist_data/
+=======
+/notebooks/splits
+>>>>>>> static_dev
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -129,3 +133,8 @@ pyrepo
 
 # OS Files
 .DS_Store
+<<<<<<< HEAD
+=======
+
+# 
+>>>>>>> static_dev

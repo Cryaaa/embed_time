@@ -17,7 +17,15 @@ authors = [
 ]
 dynamic = ["version"]
 dependencies = [
+<<<<<<< HEAD
     "torch"
+=======
+    "zarr",
+    "numpy",
+    "torch",
+    "matplotlib",
+    "pandas"
+>>>>>>> static_dev
 ]
 [project.optional-dependencies]
 dev = [
