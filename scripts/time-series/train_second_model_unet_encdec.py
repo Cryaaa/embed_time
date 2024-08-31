@@ -24,7 +24,7 @@ def loss_function(recon_x, x, mu, log_var):
     KLD = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
     return MSE + KLD
 
-def train(epoch, model, loss_fn, optimizer, train_loader,checkpoint_dir):
+def train(epoch, model, loss_fn, optimizer, train_loader,checkpoint_dir, metadata=None):
     model.train()
     train_loss = 0
     losses = []
@@ -54,6 +54,7 @@ def train(epoch, model, loss_fn, optimizer, train_loader,checkpoint_dir):
             "model": model.state_dict(),
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
+            "metadata": metadata
         },
         checkpoint_dir / f"checkpoint_{epoch}.pth",
     )
@@ -61,7 +62,7 @@ from datetime import datetime
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_UNEt_encdec_checkpoints"
+    checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_UNEt_encdec_02_checkpoints"
     print(checkpoint_dir)
 
     checkpoint_dir.mkdir(exist_ok=True)
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         ),
         v2.RandomHorizontalFlip(),
         v2.RandomVerticalFlip(),
-        v2.GaussianNoise(0,0.05)
+        v2.GaussianBlur(kernel_size=3, sigma=(0.1,1.0)),
     ])
 
     dataset_w_t = LiveTLSDataset(
@@ -97,21 +98,28 @@ if __name__ == "__main__":
     print((y,x))
 
     NUM_EPOCHS = 50
+    n_fmaps = 10
+    depth = 4
+    z_dim = 25
+    model_dict = {'num_epochs': NUM_EPOCHS,
+                  'n_fmaps': n_fmaps,
+                  'depth': depth,
+                  'z_dim': z_dim}
     encoder = UNetEncoder(
         in_channels = in_channels,
-        n_fmaps = 8,
-        depth = 3,
+        n_fmaps = n_fmaps,
+        depth = depth,
         in_spatial_shape = (y,x),
-        z_dim = 20,
+        z_dim = z_dim,
     )
 
     decoder = UNetDecoder(
         in_channels = in_channels,
-        n_fmaps = 8,
-        depth = 3,
+        n_fmaps = n_fmaps,
+        depth = depth,
         in_spatial_shape = (y,x),
-        z_dim = 20,
-        upsample_mode="nearest"
+        z_dim = z_dim,
+        upsample_mode="bicubic"
     )
 
     model = VAE(encoder, decoder)
@@ -128,8 +136,6 @@ if __name__ == "__main__":
             loss_function,
             optimizer,
             dataloader,
-            checkpoint_dir=checkpoint_dir)
+            checkpoint_dir=checkpoint_dir,
+            metadata=model_dict)
         # test()
-    
-
-   
