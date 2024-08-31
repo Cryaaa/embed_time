@@ -38,4 +38,9 @@ dev = [
     "matplotlib",
     "tqdm",
     "pathlib"
+    "torch"
+]
+[project.optional-dependencies]
+dev = [
+    "pytest"
 ]
