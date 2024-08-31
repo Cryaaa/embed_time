@@ -118,7 +118,8 @@ class VAE(nn.Module):
     def sampling(self, mu, log_var):
         std = torch.exp(0.5 * log_var)
         eps = torch.randn_like(std)
-        return eps.mul(std).add_(mu)  # return z sample
+        z = eps.mul(std).add_(mu)
+        return z  # return z sample
 
     def forward(self, x):
         mu, log_var = self.encoder(x)
