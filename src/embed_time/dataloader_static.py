@@ -8,7 +8,8 @@ class CustomBatch:
         
         for item in data:
             for key in images_keys:
-                self.images[key].append(torch.tensor(item[key]))
+                # convert to float and then to tensor
+                self.images[key].append(torch.tensor(item[key], dtype=torch.float32))
             for key in metadata_keys:
                 self.metadata[key].append(item[key])
         

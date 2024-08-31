@@ -21,7 +21,9 @@ dependencies = [
     "numpy",
     "torch",
     "matplotlib",
-    "pandas"
+    "pandas",
+    "torchview",
+    "graphviz"
 ]
 [project.optional-dependencies]
 dev = [

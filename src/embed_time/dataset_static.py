@@ -50,12 +50,6 @@ class ZarrCellDataset(Dataset):
         cell_mask = zarr_group['cells'][cell_idx]
         nuclei_mask = zarr_group['nuclei'][cell_idx]
 
-        # original_image = np.expand_dims(original_image, 1)
-        # cell_mask = np.expand_dims(cell_mask, 0)
-        # nuclei_mask = np.expand_dims(nuclei_mask, 0)
-
-        # print(original_image.shape, cell_mask.shape, nuclei_mask.shape)
-
         # Apply transform
         cell_image, nuclei_image = self._apply_transform(original_image, cell_mask, nuclei_mask)
 
