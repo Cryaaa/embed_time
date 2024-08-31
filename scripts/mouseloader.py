@@ -10,33 +10,49 @@ from funlib.persistence import Array
 import dask #like np but on big data
 
 
-datapath = Path('/mnt/efs/dlmbl/G-et/data/mousepanc/zarrtransposed/')
-
-testimage = datapath.glob( '25868*3.2*.zarr') # glob made for unix wildcard
-
-# select the first image
-testimage = list(testimage)[0] 
-
-testimage = zarr.open(testimage)
-
-print(testimage.shape)
-
-testarray = Array(testimage, axis_names = ["color^", "x", "y"])
 
 raw = gp.ArrayKey('RAW') # this the raw image
-source = gp.ArraySource(raw, testarray, interpolatable=True) # put image into gunpowder pipeline
-source += gp.RandomLocation() # random location in image
-source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(30.0, 30.0), rotate=True, spatial_dims = True) # augment image
+mask = gp.ArrayKey('MASK') # this is the mask
+
+datapath = Path("/mnt/efs/dlmbl/G-et/data/mousepanc")
+sources = []
+for test_zarr in (datapath / "zarrtransposed").iterdir():
+    test_image = Array(zarr.open(datapath / "zarrtransposed"/ test_zarr.name), axis_names=["color^", "x", "y"])
+    test_mask = Array(zarr.open(datapath / "masks" / test_zarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
+
+    image_source = gp.ArraySource(raw, test_image, interpolatable=True) # put image into gunpowder pipeline
+    mask_source = gp.ArraySource(mask, test_mask, interpolatable=False) # put mask into gunpowder pipeline
+
+    source = (image_source, mask_source) + gp.MergeProvider() # put both into pipeline
+    source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image
+    sources.append(source)
+    break
+
+source = tuple(sources) + gp.RandomProvider()
+
+# Augment image
+source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(10.0, 10.0), rotate=True, spatial_dims = 2) # augment image
+#TODO: Add more augmentations
+
+
 # write request
 request = gp.BatchRequest()
-request.add(raw, (5000, 5000))
-
+size = 320
+request.add(raw, (size, size))
+request.add(mask, (size, size))
 
 
 with gp.build(source):
-    batch = source.request_batch(request)
-    x = batch.arrays[raw].data
-    plt.imshow(x.transpose(1, 2, 0))
-    plt.show()
+    for i in range(10): # number of patches 
+        batch = source.request_batch(request)
+        x = batch.arrays[raw].data
+        y = batch.arrays[mask].data
+        plt.imshow(x.transpose(1, 2, 0))
+        plt.show()
+        plt.imshow(y)
+        plt.show()
 
 
+# treat this as dataloader. Same pipeline for sick and treated data 
+# put x through the model 
+# 
