@@ -63,7 +63,7 @@ def main(args):
         print_cell_data_shapes(dataset[args.sample_index])
 
     # save the dataset parameters and returned mean into a yaml file based on the datetime
-    with open(f"/home/S-md/embed_time/notebooks/dataset/dataset_info_{time}.yaml", "w") as file:
+    with open(f"/mnt/efs/dlmbl/G-et/yaml/dataset_info_{time}.yaml", "w") as file:
         file.write(f"Dataset mean: {dataset.mean}\n")
         file.write(f"Dataset std: {dataset.std}\n")
         file.write(f"Dataset length: {len(dataset)}\n")
@@ -101,7 +101,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VAE architecture for optical pooled screening data")
     parser.add_argument("--parent_dir", type=str, default="/mnt/efs/dlmbl/S-md/", help="Parent directory for dataset")
-    parser.add_argument("--output_file", type=str, default="/home/S-md/embed_time/notebooks/splits/split_804.csv", help="Output file for dataset split")
+    parser.add_argument("--output_file", type=str, default="/mnt/efs/dlmbl/G-et/csv/split_804.csv", help="Output file for dataset split")
     parser.add_argument("--generate_split", action="store_true", default=True, help="Generate dataset split")
     parser.add_argument("--train_ratio", type=float, default=0.7, help="Train ratio for dataset split")
     parser.add_argument("--val_ratio", type=float, default=0.15, help="Validation ratio for dataset split")
