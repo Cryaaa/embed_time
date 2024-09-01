@@ -6,6 +6,8 @@ from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
 import torch
 from torch.utils.data import DataLoader
+
+from torchvision.transforms import v2
 from torch.nn import functional as F
 from torch import optim
 import matplotlib.pyplot as plt
@@ -14,7 +16,25 @@ import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import yaml
 
+def read_config(yaml_path):
+    with open(yaml_path, 'r') as file:
+        config = yaml.safe_load(file)
+    
+    # Extract 'Dataset mean' and 'Dataset std' from the config
+    mean = config['Dataset mean'][0]  # Access the first (and only) element of the list
+    std = config['Dataset std'][0]
+
+    # Split the strings and convert to floats
+    mean = [float(i) for i in mean.split()]
+    std = [float(i) for i in std.split()]
+    
+    # Convert to ndarrays
+    mean = np.array(mean)
+    std = np.array(std)
+
+    return mean, std
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -26,7 +46,7 @@ else:
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/training_logs/'
-output_file = csv_file = output_path + 'example_split.csv'
+# output_file = csv_file = output_path + 'example_split.csv'
 model_name = "static_vanilla_vae"
 run_name= "initial_params"
 train_ratio = 0.7
@@ -62,16 +82,20 @@ if find_port:
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Create the dataset split CSV file
-DatasetSplitter(parent_dir, output_file, train_ratio, val_ratio, num_workers).generate_split()
+# DatasetSplitter(parent_dir, output_file, train_ratio, val_ratio, num_workers).generate_split()
 
+#already generated split csv
+csv_file = '/mnt/efs/dlmbl/G-et/csv/split_804.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
-cell_cycle_stages = 'interphase'
 transform = "masks"
 crop_size = 100
+normalizations = v2.Compose([v2.CenterCrop(crop_size)])
+yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
+dataset_mean, dataset_std = read_config(yaml_file_path)
 
 # Create the dataset
-dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, crop_size)
+dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, normalizations, None, dataset_mean, dataset_std)
 
 #%% Generate Dataloader
 
@@ -217,7 +241,7 @@ def train(
                 
                 metadata = list(zip(batch['gene'], batch['barcode'], batch['stage']))
                 tb_logger.add_embedding(
-                    torch.rand_like(mu), metadata=metadata, label_img = input_image[:,2:3,...],global_step=step
+                    mu, metadata=metadata, label_img = input_image[:,2:3,...],global_step=step
                 )
                
                 # TODO saving model
@@ -241,7 +265,9 @@ def train(
 
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
 checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
+os.makedirs(checkpoint_path, exist_ok=True)
 log_path = output_path + "logs/static/"+ folder_suffix + "/"
+os.makedirs(log_path, exist_ok=True)
 for epoch in range(1, 10):
     train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
     filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
@@ -257,4 +283,4 @@ for epoch in range(1, 10):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_per_epoch 
     }
-    torch.save(checkpoint, output_path + filename_suffix + str(epoch) + "checkpoint.pth")
+    torch.save(checkpoint, checkpoint_path + filename_suffix + str(epoch) + "checkpoint.pth")

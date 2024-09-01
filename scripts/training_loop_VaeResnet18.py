@@ -6,6 +6,7 @@ from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
 from embed_time.model_VAE_resnet18 import ResNet18Enc, ResNet18Dec, VAEResNet18
 import torch
+from torchvision.transforms import v2
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
 from torch import optim
@@ -15,7 +16,25 @@ import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import yaml
 
+def read_config(yaml_path):
+    with open(yaml_path, 'r') as file:
+        config = yaml.safe_load(file)
+    
+    # Extract 'Dataset mean' and 'Dataset std' from the config
+    mean = config['Dataset mean'][0]  # Access the first (and only) element of the list
+    std = config['Dataset std'][0]
+
+    # Split the strings and convert to floats
+    mean = [float(i) for i in mean.split()]
+    std = [float(i) for i in std.split()]
+    
+    # Convert to ndarrays
+    mean = np.array(mean)
+    std = np.array(std)
+
+    return mean, std
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -27,14 +46,13 @@ else:
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/logs/'
-output_file = csv_file = output_path + 'example_split.csv'
-model_name = "static_resnet18-Vae"
+model_name = "test_delete-Vae"
 run_name= "Test_run"
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
 #change to false if you already have tensorboard running
-find_port = True
+find_port = False
 #%% Define the logger for tensorboard
 # Function to find an available port
 def find_free_port():
@@ -43,7 +61,6 @@ def find_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         return s.getsockname()[1]
-
 
 # Launch TensorBoard on the browser
 def launch_tensorboard(log_dir):
@@ -62,17 +79,17 @@ if find_port:
 
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
-# Create the dataset split CSV file
-DatasetSplitter(parent_dir, output_file, train_ratio, val_ratio, num_workers).generate_split()
-
+csv_file = '/mnt/efs/dlmbl/G-et/csv/example_split.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
-cell_cycle_stages = 'interphase'
 transform = "masks"
-crop_size = 150
+crop_size = 128
+normalizations = v2.Compose([v2.CenterCrop(crop_size)])
+yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
+dataset_mean, dataset_std = read_config(yaml_file_path)
 
 # Create the dataset
-dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, crop_size)
+dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, normalizations, None, dataset_mean, dataset_std)
 
 #%% Generate Dataloader
 
@@ -103,10 +120,10 @@ dataloader = DataLoader(
 #                   output_shape=(100, 100))
 
 # Initiate VAE
-model = VAEResNet18(nc=4, z_dim=4).to(device)
+model = VAEResNet18(nc=4, z_dim=10).to(device)
 
 #%% Define Optimizar
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 
 def loss_function(recon_x, x, mu, logvar):
     BCE = F.mse_loss(recon_x, x, reduction='mean')
@@ -128,6 +145,7 @@ def train(
     loss_function = loss_function,
     log_interval=100,
     log_image_interval=20,
+    beta=1,
     tb_logger=None,
     device=device,
     early_stop=False,
@@ -143,7 +161,7 @@ def train(
         
         recon_batch, mu, logvar = model(data)
         BCE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = BCE + KLD  
+        loss = BCE + beta*KLD  
         
         loss.backward()
         train_loss += loss.item()
@@ -182,46 +200,53 @@ def train(
             tb_logger.add_scalar(
                 tag="train_loss", scalar_value=loss.item(), global_step=step
             )
+            tb_logger.add_scalar(
+                tag="BCE_loss", scalar_value=BCE.item(), global_step=step
+            )
+            tb_logger.add_scalar(
+                tag="KLD_loss", scalar_value=KLD.item(), global_step=step
+            )
             # check if we log images in this iteration
             if step % log_image_interval == 0:
                 input_image = data.to("cpu").detach()       
                 predicted_image = recon_batch.to("cpu").detach()
 
                 tb_logger.add_images(
-                    tag="input_channel_0", img_tensor=input_image[:,0:1,...], global_step=step
+                    tag="Channel_0_input", img_tensor=input_image[:,0:1,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag= "reconstruction_0", img_tensor=predicted_image[:,0:1,...], global_step=step
+                    tag= "Channel_0_reconstruction", img_tensor=predicted_image[:,0:1,...], global_step=step
                 )
                 
                 tb_logger.add_images(
-                    tag="input_1", img_tensor=input_image[:,1:2,...], global_step=step
+                    tag="Channel_1_input", img_tensor=input_image[:,1:2,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag="reconstruction_1", img_tensor=predicted_image[:,1:2,...], global_step=step
-                )
-
-                tb_logger.add_images(
-                    tag="input_2", img_tensor=input_image[:,2:3,...], global_step=step
-                )
-                tb_logger.add_images(
-                    tag="reconstruction_2", img_tensor=predicted_image[:,2:3,...], global_step=step
+                    tag="Channel_1_reconstruction", img_tensor=predicted_image[:,1:2,...], global_step=step
                 )
 
                 tb_logger.add_images(
-                    tag="input_3", img_tensor=input_image[:,3:4,...], global_step=step
+                    tag="Channel_2_input", img_tensor=input_image[:,2:3,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag="reconstruction_3", img_tensor=predicted_image[:,3:4,...], global_step=step
+                    tag="Channel_2_reconstruction", img_tensor=predicted_image[:,2:3,...], global_step=step
+                )
+
+                tb_logger.add_images(
+                    tag="Channel_3_input", img_tensor=input_image[:,3:4,...], global_step=step
+                )
+                tb_logger.add_images(
+                    tag="Channel_3_reconstruction", img_tensor=predicted_image[:,3:4,...], global_step=step
                 )
 
                 
-                metadata = list(zip(batch['gene'], batch['barcode'], batch['stage']))
+                metadata = [list(item) for item in zip(batch['gene'], batch['barcode'], batch['stage'])]
                 tb_logger.add_embedding(
-                    torch.rand_like(mu), metadata=metadata, label_img = input_image[:,2:3,...],global_step=step
+                    torch.flatten(mu, start_dim=1), metadata=metadata, 
+                    label_img = input_image[:,2:3,...], global_step=step,
+
                 )
                
-                # TODO saving model
             
         # early stopping
         if early_stop and batch_idx > 5:
@@ -242,9 +267,12 @@ def train(
 
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
 checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
+
+os.makedirs(checkpoint_path, exist_ok=True)
 log_path = output_path + "logs/static/"+ folder_suffix + "/"
+os.makedirs(log_path, exist_ok=True)
 for epoch in range(1, 10):
-    train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
+    train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger, beta=1e-5)
     filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
     training_logDF = pd.DataFrame(training_log)
     training_logDF.to_csv(log_path + filename_suffix+"training_log.csv", index=False)
@@ -258,4 +286,5 @@ for epoch in range(1, 10):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_per_epoch 
     }
-    torch.save(checkpoint, output_path + filename_suffix + str(epoch) + "checkpoint.pth")
+    print(checkpoint_path + str(epoch) + "checkpoint.pth")
+    torch.save(checkpoint, checkpoint_path + str(epoch) + "checkpoint.pth")
