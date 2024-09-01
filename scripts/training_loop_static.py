@@ -1,11 +1,12 @@
-
+#%%
 import os
 from embed_time.splitter_static import DatasetSplitter
-from embed_time.dataset_static import ZarrCellDataset
+from embed_time.dataset_static import ZarrCellDataset, ZarrCellDataset_specific
 from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
 import torch
 from torch.utils.data import DataLoader
+from torchvision.transforms import v2
 from torch.nn import functional as F
 from torch import optim
 import matplotlib.pyplot as plt
@@ -13,7 +14,6 @@ import subprocess
 import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
-
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -24,24 +24,47 @@ else:
 
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-output_path = '/home/S-ac/embed_time/notebooks/splits/'
-output_file = csv_file = output_path + 'example_split.csv'
+output_path = '/home/S-md/embed_time/notebooks/splits/'
+output_file = csv_file = output_path + 'larger_split.csv'
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
-
 # Create the dataset split CSV file
 DatasetSplitter(parent_dir, output_file, train_ratio, val_ratio, num_workers).generate_split()
-
+#%%
+parent_dir = '/mnt/efs/dlmbl/S-md/'
+csv_file = '/home/S-md/embed_time/notebooks/splits/larger_split.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
 cell_cycle_stages = 'interphase'
-transform = "masks"
-crop_size = 100
-
+mask = "masks"
+normalizations = v2.Compose([
+    v2.CenterCrop(100)
+])
+interpolations = None
 # Create the dataset
-dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, crop_size)
+dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, mask, normalizations, interpolations)
 
+# # parent_dir = '/mnt/efs/dlmbl/S-md/'
+# # gene_name = 'AAAS'
+# # barcode_name = 'ATATGAGCACAATAACGAGC'
+# # channels = [0, 1, 2, 3]
+# # cell_cycle_stages = 'interphase'
+# # mask = "masks"
+# # normalizations = v2.Compose([
+# #     v2.CenterCrop(100),
+# # ])
+# # interpolations = None
+
+# # # Create the dataset
+# # dataset = ZarrCellDataset_specific(parent_dir, gene_name, barcode_name, channels, cell_cycle_stages, mask, normalizations, interpolations)
+
+# Compute the mean and standard deviation of the dataset
+print("mean_dataset", dataset.mean)
+print("std_dataset", dataset.std)
+
+# Print the number of images and shapes of the data
+print(f"The dataset contains {len(dataset)} images.")
 #%% Generate Dataloader
 
 # Define the metadata keys
@@ -55,7 +78,6 @@ dataloader = DataLoader(
     shuffle=True, 
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
-
 
 #%% Create the model
 
@@ -130,7 +152,8 @@ def train(
     train_loss = 0
     for batch_idx, batch in enumerate(dataloader):
         data = batch['cell_image'].to(device)
-
+        # print(data.max(), data.min(), data.mean())
+        # input("stop here")
         # zero the gradients for this iteration
         optimizer.zero_grad()
         
@@ -177,6 +200,7 @@ def train(
             # check if we log images in this iteration
             if step % log_image_interval == 0:
                 input_image = data.to("cpu").detach()
+                metadata = list(zip(batch['gene'], batch['barcode'], batch['stage']))
                 # top = torch.hstack((input_image[:,0,...], input_image[:,1,...]))
                 # bottom = torch.hstack((input_image[:,2,...], input_image[:,3,...]))  # Combine a and b horizontally
                 # input_image = torch.vstack((top, bottom))                 
@@ -192,22 +216,15 @@ def train(
                 tb_logger.add_images(
                     tag="input3", img_tensor=input_image[:,3:4,...], global_step=step
                 )
-
-                # tb_logger.add_images(
-                #     tag="reconstruction",
-                #     img_tensor=torch.cat([recon_batch.to("cpu").detach()[:,i] for i in range(4)],dim=2),
-                #     global_step=step,
-                # )
-                # combined_image = torch.cat(
-                #     [data, recon_batch, data.size()], # pad_to_size() if we change pading of the model to valid
-                #     dim=4,
-                # )
-
-                # tb_logger.add_images(
-                #     tag="input_target_prediction",
-                #     img_tensor=combined_image,
-                #     global_step=step,
-                # )
+                tb_logger.add_embedding(
+                    mat=mu, metadata=metadata, label_img = input_image[:,0:1,...], tag="latent_space", global_step=step,
+                )
+                recon_batch = recon_batch.to("cpu").detach()
+                tb_logger.add_images(
+                    tag="reconstruction",
+                    img_tensor=recon_batch[:,0:1,...],
+                    global_step=step,
+                )
 
         if early_stop and batch_idx > 5:
             print("Stopping test early!")
@@ -225,7 +242,7 @@ def train(
 
 #%% Training loop
 
-for epoch in range(1, 10):
+for epoch in range(1, 400):
     train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
 
     training_logDF = pd.DataFrame(training_log)

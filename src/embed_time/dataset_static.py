@@ -8,7 +8,8 @@ from torch.utils.data import Dataset
 import pandas as pd
 
 class ZarrCellDataset(Dataset):
-    def __init__(self, parent_dir, csv_file, split="train", channels=[0, 1, 2, 3], mask="masks", normalizations=None, interpolations=None):
+    def __init__(self, parent_dir, csv_file, split="train", channels=[0, 1, 2, 3], 
+                 mask="masks", normalizations=None, interpolations=None, mean=None, std=None):
         self.parent_dir = Path(parent_dir)
         self.channels = channels
         self.mask = mask
@@ -20,8 +21,8 @@ class ZarrCellDataset(Dataset):
         self.grouped_data = self.data_info.groupby(['gene', 'barcode', 'stage'])
         self.zarr_data = self._load_all_zarr_data()
 
-        self._mean = None
-        self._std = None
+        self._mean = mean
+        self._std = std
 
     def __len__(self):
         return len(self.data_info)
@@ -146,7 +147,7 @@ class ZarrCellDataset(Dataset):
 
 class ZarrCellDataset_specific(Dataset):
     def __init__(self, parent_dir, gene_name, barcode_name, channels=[0, 1, 2, 3], cell_cycle_stages="interphase", 
-                 mask="masks", normalizations=None, interpolations=None):
+                 mask="masks", normalizations=None, interpolations=None, mean=None, std=None):
         self.parent_dir = parent_dir
         self.gene_name = gene_name
         self.barcode_name = barcode_name
@@ -155,8 +156,8 @@ class ZarrCellDataset_specific(Dataset):
         self.mask = mask
         self.normalizations = normalizations
         self.interpolations = interpolations
-        self._mean = None
-        self._std = None
+        self._mean = mean
+        self._std = std
 
         self.zarr_data = self._load_zarr_data()
         self.original_images, self.cell_masks, self.nuclei_masks = self._load_images_and_masks()
