@@ -1,4 +1,4 @@
-
+#%%
 import os
 from embed_time.splitter_static import DatasetSplitter
 from embed_time.dataset_static import ZarrCellDataset
@@ -24,7 +24,7 @@ else:
 
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-output_path = '/home/S-ac/embed_time/notebooks/splits/'
+output_path = '/home/S-ab/embed_time/training_logs/'
 output_file = csv_file = output_path + 'example_split.csv'
 train_ratio = 0.7
 val_ratio = 0.15
@@ -130,7 +130,13 @@ def train(
     train_loss = 0
     for batch_idx, batch in enumerate(dataloader):
         data = batch['cell_image'].to(device)
-
+        # print(data.shape)
+        # print("min",data.min(), data.max(), data.mean())
+        # label = 'gene'
+        # metadata=list(batch[label])
+        
+        # print(metadata)
+        # input('jhhhj')
         # zero the gradients for this iteration
         optimizer.zero_grad()
         
@@ -192,6 +198,31 @@ def train(
                 tb_logger.add_images(
                     tag="input3", img_tensor=input_image[:,3:4,...], global_step=step
                 )
+                label = 'gene'
+                tb_logger.add_embedding(
+                    torch.rand_like(mu), metadata=list(batch[label]), label_img = input_image[:,2:3,...],global_step=step
+                )
+                # torch.rand_like(mu)
+                # TODO saving model
+                ############################
+            
+                # train_loss = 0
+                # writer.add_scalar("Loss/train", loss.item(), i)
+                # 3D version
+                # central_slice = recon_batch.shape[2] // 2
+                # writer.add_images("Input", data[:, :, central_slice], i)
+                # writer.add_images(
+                #     "Reconstructions", recon_batch[:, :, central_slice], i
+                # )
+                # 2D version
+                # writer.add_images("Input", data, i)
+                # writer.add_images("Reconstructions", recon_batch, i)
+                # Both versions
+                # print(mu.shape)
+                # print(batch[label].data.shape)
+                # tb_logger.add_embedding(
+                #     mu, metadata=batch[label].data.squeeze().tolist(), global_step=step
+                # )
 
                 # tb_logger.add_images(
                 #     tag="reconstruction",
