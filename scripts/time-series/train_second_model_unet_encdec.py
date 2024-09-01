@@ -188,7 +188,7 @@ def launch_tensorboard(log_dir):
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    model_name = "UNEt_encdec_05_moreeps"
+    model_name = "UNEt_encdec_06_validation"
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
 
@@ -221,16 +221,16 @@ if __name__ == "__main__":
         return_metadata=False,
         transform = loading_transforms_wcrop,
     )
-    train_set, validation_set = torch.utils.dataset.random_split(dataset_w_t,[0.8,0.2])
+    train_set, validation_set = torch.utils.data.random_split(dataset_w_t,[0.8,0.2])
 
     sample, label = dataset_w_t[0]
     in_channels, y, x = sample.shape
     print(in_channels)
     print((y,x))
 
-    NUM_EPOCHS = 300
+    NUM_EPOCHS = 50
     n_fmaps = 32
-    depth = 3
+    depth = 4
     z_dim = 20
     upsample_mode = "bicubic"
     model_dict = {
@@ -266,7 +266,8 @@ if __name__ == "__main__":
     model.to(device)
     print(device)
     train_losses = []
-    for epoch in range(NUM_EPOCHS):
+    val_losses = []
+    for epoch in range(NUM_EPOCHS): # train for one epoch, validate
         loss_epoch = train(
             epoch,
             model,
@@ -277,16 +278,7 @@ if __name__ == "__main__":
             metadata=model_dict,
             tb_logger=logger)
         train_losses.append(loss_epoch)
-
-    # TODO SAVE LOSSES SOMEWHERE
-    train_loss_df = []
-    for epoch,loss in enumerate(train_losses):
-        loss_df = pd.DataFrame(loss)
-        loss_df["Epoch"] = [epoch for _ in range(len(loss_df))]
-        train_loss_df.append(loss_df)
-
-    val_losses = []
-    for epoch in range(NUM_EPOCHS):
+        
         loss_epoch = validate(
             epoch,
             model,
@@ -298,6 +290,13 @@ if __name__ == "__main__":
             tb_logger=logger)
         val_losses.append(loss_epoch)
 
+    # TODO SAVE LOSSES SOMEWHERE
+    train_loss_df = []
+    for epoch,loss in enumerate(train_losses):
+        loss_df = pd.DataFrame(loss)
+        loss_df["Epoch"] = [epoch for _ in range(len(loss_df))]
+        train_loss_df.append(loss_df)
+        
     # TODO SAVE LOSSES SOMEWHERE
     val_loss_df = []
     for epoch,loss in enumerate(val_losses):
