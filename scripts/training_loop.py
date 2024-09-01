@@ -13,6 +13,7 @@ import subprocess
 import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
 
 
 if torch.cuda.is_available():
@@ -24,11 +25,41 @@ else:
 
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-output_path = '/home/S-ab/embed_time/training_logs/'
+output_path = '/mnt/efs/dlmbl/G-et/training_logs/'
 output_file = csv_file = output_path + 'example_split.csv'
+model_name = "static_vanilla_vae"
+run_name= "initial_params"
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
+#change to false if you already have tensorboard running
+find_port = True
+#%% Define the logger for tensorboard
+# Function to find an available port
+def find_free_port():
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        return s.getsockname()[1]
+
+
+# Launch TensorBoard on the browser
+def launch_tensorboard(log_dir):
+    port = find_free_port()
+    tensorboard_cmd = f"tensorboard --logdir={log_dir} --port={port}"
+    process = subprocess.Popen(tensorboard_cmd, shell=True)
+    print(
+        f"TensorBoard started at http://localhost:{port}. \n"
+        "If you are using VSCode remote session, forward the port using the PORTS tab next to TERMINAL."
+    )
+    return process
+
+# Launch tensorboard and click on the link to view the logs.
+if find_port:
+    tensorboard_process = launch_tensorboard("embed_time_static_runs")
+
+logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Create the dataset split CSV file
 DatasetSplitter(parent_dir, output_file, train_ratio, val_ratio, num_workers).generate_split()
@@ -82,41 +113,15 @@ def loss_function(recon_x, x, mu, logvar):
     return BCE, KLD   
 
 
-#%% Define the logger for tensorboard
-# Function to find an available port
-def find_free_port():
-    import socket
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
-
-# Launch TensorBoard on the browser
-def launch_tensorboard(log_dir):
-    port = find_free_port()
-    tensorboard_cmd = f"tensorboard --logdir={log_dir} --port={port}"
-    process = subprocess.Popen(tensorboard_cmd, shell=True)
-    print(
-        f"TensorBoard started at http://localhost:{port}. \n"
-        "If you are using VSCode remote session, forward the port using the PORTS tab next to TERMINAL."
-    )
-    return process
-
-# Launch tensorboard and click on the link to view the logs.
-tensorboard_process = launch_tensorboard("embed_time_runs")
-model_name = "First Try"
-logger = SummaryWriter(f"embed_time_runs/{model_name}")
 
 #%% Define training function
 training_log = []
 epoch_log = []
-
+loss_per_epoch = 0
 def train(
     epoch,
     model = vae,
-    training_log = training_log,
-    epoch_log = epoch_log,
     loader = dataloader,
     optimizer = optimizer,
     loss_function = loss_function,
@@ -125,19 +130,14 @@ def train(
     tb_logger=None,
     device=device,
     early_stop=False,
+    training_log = training_log,
+    epoch_log = epoch_log,
+    loss_per_epoch = loss_per_epoch
     ):
     model.train()
     train_loss = 0
     for batch_idx, batch in enumerate(dataloader):
         data = batch['cell_image'].to(device)
-        # print(data.shape)
-        # print("min",data.min(), data.max(), data.mean())
-        # label = 'gene'
-        # metadata=list(batch[label])
-        
-        # print(metadata)
-        # input('jhhhj')
-        # zero the gradients for this iteration
         optimizer.zero_grad()
         
         recon_batch, mu, logvar = vae(data)
@@ -147,6 +147,7 @@ def train(
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
+        loss_per_epoch = train_loss / len(dataloader.dataset)
         
         # log to console
         if batch_idx % 5 == 0:
@@ -182,64 +183,46 @@ def train(
             )
             # check if we log images in this iteration
             if step % log_image_interval == 0:
-                input_image = data.to("cpu").detach()
-                # top = torch.hstack((input_image[:,0,...], input_image[:,1,...]))
-                # bottom = torch.hstack((input_image[:,2,...], input_image[:,3,...]))  # Combine a and b horizontally
-                # input_image = torch.vstack((top, bottom))                 
+                input_image = data.to("cpu").detach()       
+                predicted_image = recon_batch.to("cpu").detach()
+
                 tb_logger.add_images(
-                    tag="input0", img_tensor=input_image[:,0:1,...], global_step=step
+                    tag="input_channel_0", img_tensor=input_image[:,0:1,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag="input1", img_tensor=input_image[:,1:2,...], global_step=step
+                    tag= "reconstruction_0", img_tensor=predicted_image[:,0:1,...], global_step=step
+                )
+                
+                tb_logger.add_images(
+                    tag="input_1", img_tensor=input_image[:,1:2,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag="input2", img_tensor=input_image[:,2:3,...], global_step=step
+                    tag="reconstruction_1", img_tensor=predicted_image[:,1:2,...], global_step=step
+                )
+
+                tb_logger.add_images(
+                    tag="input_2", img_tensor=input_image[:,2:3,...], global_step=step
                 )
                 tb_logger.add_images(
-                    tag="input3", img_tensor=input_image[:,3:4,...], global_step=step
+                    tag="reconstruction_2", img_tensor=predicted_image[:,2:3,...], global_step=step
                 )
-                label = 'gene'
+
+                tb_logger.add_images(
+                    tag="input_3", img_tensor=input_image[:,3:4,...], global_step=step
+                )
+                tb_logger.add_images(
+                    tag="reconstruction_3", img_tensor=predicted_image[:,3:4,...], global_step=step
+                )
+
+                
+                metadata = list(zip(batch['gene'], batch['barcode'], batch['stage']))
                 tb_logger.add_embedding(
-                    torch.rand_like(mu), metadata=list(batch[label]), label_img = input_image[:,2:3,...],global_step=step
+                    torch.rand_like(mu), metadata=metadata, label_img = input_image[:,2:3,...],global_step=step
                 )
-                # torch.rand_like(mu)
+               
                 # TODO saving model
-                ############################
             
-                # train_loss = 0
-                # writer.add_scalar("Loss/train", loss.item(), i)
-                # 3D version
-                # central_slice = recon_batch.shape[2] // 2
-                # writer.add_images("Input", data[:, :, central_slice], i)
-                # writer.add_images(
-                #     "Reconstructions", recon_batch[:, :, central_slice], i
-                # )
-                # 2D version
-                # writer.add_images("Input", data, i)
-                # writer.add_images("Reconstructions", recon_batch, i)
-                # Both versions
-                # print(mu.shape)
-                # print(batch[label].data.shape)
-                # tb_logger.add_embedding(
-                #     mu, metadata=batch[label].data.squeeze().tolist(), global_step=step
-                # )
-
-                # tb_logger.add_images(
-                #     tag="reconstruction",
-                #     img_tensor=torch.cat([recon_batch.to("cpu").detach()[:,i] for i in range(4)],dim=2),
-                #     global_step=step,
-                # )
-                # combined_image = torch.cat(
-                #     [data, recon_batch, data.size()], # pad_to_size() if we change pading of the model to valid
-                #     dim=4,
-                # )
-
-                # tb_logger.add_images(
-                #     tag="input_target_prediction",
-                #     img_tensor=combined_image,
-                #     global_step=step,
-                # )
-
+        # early stopping
         if early_stop and batch_idx > 5:
             print("Stopping test early!")
             break
@@ -256,11 +239,22 @@ def train(
 
 #%% Training loop
 
+folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
+checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
+log_path = output_path + "logs/static/"+ folder_suffix + "/"
 for epoch in range(1, 10):
     train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
-
+    filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
     training_logDF = pd.DataFrame(training_log)
-    training_logDF.to_csv(output_path + "training_log.csv", index=False)
+    training_logDF.to_csv(log_path + filename_suffix+"training_log.csv", index=False)
 
     epoch_logDF = pd.DataFrame(epoch_log)
-    epoch_logDF.to_csv(output_path + "epoch_log.csv", index=False)
+    epoch_logDF.to_csv(log_path + filename_suffix+"epoch_log.csv", index=False)
+
+    checkpoint = {
+        'epoch': epoch,
+        'model_state_dict': vae.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'loss': loss_per_epoch 
+    }
+    torch.save(checkpoint, output_path + filename_suffix + str(epoch) + "checkpoint.pth")
