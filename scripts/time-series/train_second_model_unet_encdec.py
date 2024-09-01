@@ -106,7 +106,7 @@ def validate(
         checkpoint_dir, 
         metadata=None,
         tb_logger=None,
-        log_image_interval = 300,
+        log_image_interval = 10,
     ):
     model.eval()
     validation_loss = 0
