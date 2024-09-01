@@ -137,7 +137,7 @@ class Resnet18Dec(nn.Module):
         return x
     
     
-class VAE(nn.Module)
+class VAE(nn.Module):
     
     def __init__(self, z_dim):
         super().__init__()
@@ -148,7 +148,7 @@ class VAE(nn.Module)
         mean, logvar = self.encoder(x)
         z = self.reparameterize(mean, logvar)
         x = self.decoder(z)
-        return x, z
+        return x, mean, logvar
     
     @staticmethod
     def reparameterize(mean, logvar):
