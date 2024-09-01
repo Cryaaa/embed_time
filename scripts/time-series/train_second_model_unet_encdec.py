@@ -306,7 +306,7 @@ if __name__ == "__main__":
         val_loss_df.append(loss_df)
 
     total_train_loss = pd.concat(train_loss_df,axis=0,ignore_index=True)
-    total_train_loss.to_csv(checkpoint_dir / "losses.csv")
+    total_train_loss.to_csv(checkpoint_dir / "train losses.csv")
 
     total_val_loss = pd.concat(val_loss_df,axis=0,ignore_index=True)
-    total_val_loss.to_csv(checkpoint_dir / "losses.csv")
+    total_val_loss.to_csv(checkpoint_dir / "validation losses.csv")
