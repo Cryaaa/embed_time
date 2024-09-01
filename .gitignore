@@ -2,17 +2,12 @@
 *.zarr
 *.tiff
 *.tif
-<<<<<<< HEAD
-<<<<<<< HEAD
 **/data/
 **/mnist_data/
-=======
-=======
 **/data/
 **/mnist_data/
->>>>>>> d7cc5ee (notebooks with code to read neuromast dataset)
 /notebooks/splits
->>>>>>> static_dev
+/scripts/embed_time_runs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -137,16 +132,4 @@ pyrepo
 .vscode/
 
 # OS Files
-<<<<<<< HEAD
 .DS_Store
-<<<<<<< HEAD
-=======
-
-# 
-<<<<<<< HEAD
->>>>>>> static_dev
-=======
->>>>>>> d7cc5ee (notebooks with code to read neuromast dataset)
-=======
-.DS_Store
->>>>>>> a704674 (fixing some rebase errors)

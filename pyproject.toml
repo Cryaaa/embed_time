@@ -23,27 +23,7 @@ dependencies = [
     "matplotlib",
     "pandas",
     "torchview",
-<<<<<<< HEAD
     "graphviz", 
-    "torchview"
-    "torch"
-]
-[project.optional-dependencies]
-dev = [
-    "pytest"
-
-    "pandas",
-    "tifffile",
-    "torch",
-    "torchvision",
-    "scikit-image",
-    "matplotlib",
-    "tqdm",
-    "pathlib"
-    "torch"
-=======
-    "graphviz"
->>>>>>> a704674 (fixing some rebase errors)
 ]
 
 [project.optional-dependencies]
