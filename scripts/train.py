@@ -7,7 +7,8 @@ from pathlib import Path
 import gunpowder as gp
 from funlib.persistence import Array
 import dask #like np but on big data
-from embed_time.model import ResNet2D
+#from embed_time.model import ResNet2D
+from embed_time.vae import ResizeConv2d
 import torch
 import re
 import numpy as np
@@ -40,43 +41,36 @@ class AddLabel(gp.BatchFilter):
         batch[self.array_key] = array
         return batch
 
-# def getlabel(name, labels):
-#     if '25868' in name:
-#         if bool(re.search('1.', name)):
-#             labels.append(1) #healthy
-#         elif re.search('2.', name):
-#             labels.append(2) #sick
-#         else:
-#             labels.append(3)
-#     elif '14550' in name:
-#         if re.search("A*PBS", name):
-#             labels.append(1)
-#         elif 'CaerPBS' in name:
-#             labels.append(2)
-#         elif bool(re.search("F*PBS*", name)):
-#             labels.append(3)
-#     else: 
-        
-#     return labels
-
 
 
 labels = []
 
+def getlabel(test_zarr):
+    if '25868' in test_zarr.name:
+        if '25868$1.' in test_zarr.name:
+            return 0
+        elif '25868$2.' in test_zarr.name:
+            return 1
+        else: 
+            return 2
+
+
+
 for test_zarr in (datapath / "zarrtransposed").iterdir():
+
+    if not "25868" in test_zarr.name: # subset to only 25868 for now 
+        print("skipping", test_zarr.name)
+        continue
+
     test_image = Array(zarr.open(datapath / "zarrtransposed"/ test_zarr.name), axis_names=["color^", "x", "y"])
     test_mask = Array(zarr.open(datapath / "masks" / test_zarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
     
-    #generate random labels 
-    gtlabel = np.random.randint(0, 3)
+    #print(test_zarr.name)
+    gtlabel = getlabel(test_zarr) #np.random.randint(0, 3) #generate random labels 
+    #print(gtlabel)
     
-    #label = np.ones(test_image.shape) * gtlabel
-
     image_source = gp.ArraySource(raw, test_image, interpolatable=True) # put image into gunpowder pipeline
     mask_source = gp.ArraySource(mask, test_mask, interpolatable=False) # put mask into gunpowder pipeline
-    #label_source = gp.ArraySource(label, np.array(gtlabel), interpolatable=False)
-
-
 
     source = (image_source, mask_source) + gp.MergeProvider() # put both into pipeline
     source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
@@ -103,17 +97,21 @@ output_classes = 256 # dimensions of the latent space
 input_channels = 3
 n_iter = 10
 
-
-model = ResNet2D(output_classes, input_channels, batch_size)
+#self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
+vae = ResizeConv2d(in_channels=input_channels, 
+                   out_channels=output_classes,
+                    kernel_size=3,
+                    scale_factor=2,
+                    )
 with gp.build(source):
     for n in range(n_iter): # number of iterations
         batch = source.request_batch(request)
         x = batch.arrays[raw].data
         x_torch = torch.tensor(x, dtype=torch.float32)
-        print(x.shape, type(x))
-        #y = batch.arrays[mask].data
-        print(x.shape)
-        pred = model(x_torch)
+        # print(x.shape, type(x))
+        # #y = batch.arrays[mask].data
+        # print(x.shape)
+        pred = vae(x_torch)
         # TODO: add loss function 
         #print(pred.shape)
         # plt.imshow(x[0].transpose(1, 2, 0))
