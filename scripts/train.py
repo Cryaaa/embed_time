@@ -12,6 +12,7 @@ from embed_time.vae import VAEResNet18
 import torch
 import re
 import numpy as np
+from tqdm import tqdm
 
 
 raw = gp.ArrayKey('RAW') # this the raw image
@@ -81,6 +82,9 @@ for test_zarr in (datapath / "zarrtransposed").iterdir():
 source = tuple(sources) + gp.RandomProvider()
 
 # Augment image
+source += gp.Normalize(raw) # normalize image: devides by max (255)
+# TODO: normalize using mean and std of data 
+
 source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(10.0, 10.0), rotate=True, spatial_dims = 2) # augment image
 #TODO: Add more augmentations
 batch_size = 16
@@ -95,10 +99,10 @@ request[label] = gp.ArraySpec(nonspatial=True)
 
 output_classes = 256 # dimensions of the latent space
 input_channels = 3
-n_iter = 500
+n_iter = 2000
 
-vae = VAEResNet18(nc = input_channels, z_dim = 16)
-loss_function: torch.nn.Module = torch.nn.MSELoss()
+vae = VAEResNet18(nc = input_channels, z_dim = 128)
+loss_function: torch.nn.Module = torch.nn.MSELoss() #TODO: try L1 loss instead
 kl_divergence = torch.nn.KLDivLoss()
 optimizer = torch.optim.Adam(vae.parameters(), lr=0.001)
 
@@ -107,35 +111,75 @@ device = torch.device("cuda")
 vae.train()
 vae = vae.to(device)
 
+reclosses = []
+kllosses = []
 losses = []
+
+
+def kld_loss( mu, logvar):
+
+    return torch.mean(-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1))
+
+# k
+beta = 1e-4 # zdim / total n of pixels (patchsize^2 * nchannels)
+
 with gp.build(source):
-    for n in range(n_iter): # number of iterations
+    for n in tqdm(range(n_iter)): # number of iterations
         batch = source.request_batch(request)
         
-        x = batch.arrays[raw].data
-        x_torch = torch.tensor(x, dtype=torch.float32)
+        x_in = batch.arrays[raw].data
 
-        x_torch = x_torch.to(device)
+        x_in_t = torch.tensor(x_in, dtype=torch.float32)
+
+        x_in_t = x_in_t.to(device)
         optimizer.zero_grad()
 
 
-        x, z = vae(x_torch) # data goes to the foreward function
-        loss = loss_function(x, x_torch) + kl_divergence(z, torch.zeros_like(z))
+        x, z, mean, logvar = vae(x_in_t) # data goes to the foreward function
+        rec_loss = loss_function(x, x_in_t)
+
+        kl_loss = kld_loss(mean, logvar)
+
+
+        loss = beta * kl_loss + rec_loss
         losses.append(loss.item())
+        reclosses.append(rec_loss.item())
+        kllosses.append(kl_loss.item())
         loss.backward()
         optimizer.step()
 
         # add a loss-function
-x_out = x.cpu().detach().numpy()
-plt.imshow(x.cpu().detach().numpy()[0][0])
 
 
-plt.plot(losses)
+
+def plotoutput(x_in, x_out):
+    # sample from len(x_in)
+    np.random.seed(0)
+    shuffled = np.arange(len(x_in))
+
+    np.random.shuffle(shuffled)
+
+    fig, ax = plt.subplots(2,4)
+    #ax.ravel()
+
+    for i in range(4):
+        ax[0, i].imshow(x_in_t[shuffled[i]].cpu().detach().numpy().transpose(1,2,0))
+        ax[1, i].imshow(x_out[shuffled[i]].cpu().detach().numpy().transpose(1,2,0))
+
+    plt.show()
+
+
+plotoutput(x_in_t, x)
+
+x_in_t.shape
+plt.imshow(x_in_t[4].cpu().detach().numpy().transpose(1,2,0))
 plt.show()
 
-        # TODO: add loss function 
-
-
+fig, ax = plt.subplots(1,2)
+ax[0].plot(reclosses)
+ax[0].set_title("Reconstruction loss")
+ax[1].plot(kllosses)
+ax[1].set_title("KL loss")
 
 # treat this as dataloader. Same pipeline for sick and treated data 
 # put x through the model 
@@ -144,3 +188,11 @@ plt.show()
 # output space: dimensions of the latent space 
 
 
+# How to tmux
+
+# tmux new -s train # where train is the name of the session
+# tmux ls # list all sessions
+# tmux a -t train # attach to session train
+# conda activate embed_time
+# python scripts/train.py
+# control + b, d # detach from session
