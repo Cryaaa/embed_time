@@ -4,6 +4,7 @@ from embed_time.splitter_static import DatasetSplitter
 from embed_time.dataset_static import ZarrCellDataset
 from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
+from embed_time.model_VAE_resnet18 import ResNet18Enc, ResNet18Dec, VAEResNet18
 import torch
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
@@ -25,10 +26,10 @@ else:
 
 # Usage example:
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-output_path = '/mnt/efs/dlmbl/G-et/training_logs/'
+output_path = '/mnt/efs/dlmbl/G-et/logs/'
 output_file = csv_file = output_path + 'example_split.csv'
-model_name = "static_vanilla_vae"
-run_name= "initial_params"
+model_name = "static_resnet18-Vae"
+run_name= "Test_run"
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
@@ -68,7 +69,7 @@ split = 'train'
 channels = [0, 1, 2, 3]
 cell_cycle_stages = 'interphase'
 transform = "masks"
-crop_size = 100
+crop_size = 150
 
 # Create the dataset
 dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, crop_size)
@@ -90,22 +91,22 @@ dataloader = DataLoader(
 
 #%% Create the model
 
-encoder = Encoder(input_shape=(100, 100),
-                  x_dim=4,
-                  h_dim1=16,
-                  h_dim2=8,
-                  z_dim=4)
-decoder = Decoder(z_dim=4,
-                  h_dim1=8,
-                  h_dim2=16,
-                  x_dim=4,
-                  output_shape=(100, 100))
+# encoder = Encoder(input_shape=(100, 100),
+#                   x_dim=4,
+#                   h_dim1=16,
+#                   h_dim2=8,
+#                   z_dim=4)
+# decoder = Decoder(z_dim=4,
+#                   h_dim1=8,
+#                   h_dim2=16,
+#                   x_dim=4,
+#                   output_shape=(100, 100))
 
 # Initiate VAE
-vae = VAE(encoder, decoder).to(device)
+model = VAEResNet18(nc=4, z_dim=4).to(device)
 
 #%% Define Optimizar
-optimizer = torch.optim.Adam(vae.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
 def loss_function(recon_x, x, mu, logvar):
     BCE = F.mse_loss(recon_x, x, reduction='mean')
@@ -121,7 +122,7 @@ epoch_log = []
 loss_per_epoch = 0
 def train(
     epoch,
-    model = vae,
+    model = model,
     loader = dataloader,
     optimizer = optimizer,
     loss_function = loss_function,
@@ -140,7 +141,7 @@ def train(
         data = batch['cell_image'].to(device)
         optimizer.zero_grad()
         
-        recon_batch, mu, logvar = vae(data)
+        recon_batch, mu, logvar = model(data)
         BCE, KLD  = loss_function(recon_batch, data, mu, logvar)
         loss = BCE + KLD  
         
@@ -253,7 +254,7 @@ for epoch in range(1, 10):
 
     checkpoint = {
         'epoch': epoch,
-        'model_state_dict': vae.state_dict(),
+        'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_per_epoch 
     }

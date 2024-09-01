@@ -144,10 +144,11 @@ class VAEResNet18(nn.Module):
         self.decoder = ResNet18Dec(nc=nc, z_dim=z_dim)
 
     def forward(self, x):
-        mean, logvar = self.encoder(x)
-        z = self.reparameterize(mean, logvar)
+        mu, log_var = self.encoder(x)
+        z = self.reparameterize(mu, log_var)
         x = self.decoder(z)
-        return x, z
+        # return x, z
+        return x, mu, log_var
     
     @staticmethod
     def reparameterize(mean, logvar):
