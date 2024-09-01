@@ -147,7 +147,7 @@ class VAEResNet18(nn.Module):
         mean, logvar = self.encoder(x)
         z = self.reparameterize(mean, logvar)
         x = self.decoder(z)
-        return x, z
+        return x, z, mean, logvar
     
     @staticmethod
     def reparameterize(mean, logvar):

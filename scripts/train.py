@@ -97,12 +97,15 @@ request.add(raw, (size, size))
 request.add(mask, (size, size))
 request[label] = gp.ArraySpec(nonspatial=True)
 
-output_classes = 256 # dimensions of the latent space
+z_dim = 128 # dimensions of the latent space
 input_channels = 3
-n_iter = 2000
+n_iter = 10000
 
-vae = VAEResNet18(nc = input_channels, z_dim = 128)
-loss_function: torch.nn.Module = torch.nn.MSELoss() #TODO: try L1 loss instead
+vae = VAEResNet18(nc = input_channels, z_dim = z_dim)
+#loss_function: torch.nn.Module = torch.nn.MSELoss() #TODO: try L1 loss instead
+# use L1 loss
+loss_function: torch.nn.Module = torch.nn.L1Loss()
+
 kl_divergence = torch.nn.KLDivLoss()
 optimizer = torch.optim.Adam(vae.parameters(), lr=0.001)
 
@@ -153,14 +156,11 @@ with gp.build(source):
 
 
 def plotoutput(x_in, x_out):
-    # sample from len(x_in)
     np.random.seed(0)
     shuffled = np.arange(len(x_in))
 
     np.random.shuffle(shuffled)
-
     fig, ax = plt.subplots(2,4)
-    #ax.ravel()
 
     for i in range(4):
         ax[0, i].imshow(x_in_t[shuffled[i]].cpu().detach().numpy().transpose(1,2,0))
@@ -171,9 +171,6 @@ def plotoutput(x_in, x_out):
 
 plotoutput(x_in_t, x)
 
-x_in_t.shape
-plt.imshow(x_in_t[4].cpu().detach().numpy().transpose(1,2,0))
-plt.show()
 
 fig, ax = plt.subplots(1,2)
 ax[0].plot(reclosses)
