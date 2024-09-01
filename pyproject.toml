@@ -37,5 +37,6 @@ dev = [
     "matplotlib",
     "tqdm",
     "pathlib"
-    "torch"
+    "torch",
+    "tensorboard"
 ]
