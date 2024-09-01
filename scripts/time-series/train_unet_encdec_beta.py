@@ -4,7 +4,7 @@ This script was used to train the pre-trained model weights that were given as a
 import pandas as pd
 from embed_time.dataloader_rs import LiveTLSDataset
 from embed_time.model import VAE
-from embed_time.model_VAE_resnet18 import VAEResNet18
+from embed_time.UNet_based_encoder_decoder import UNetDecoder, UNetEncoder
 import torch
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
@@ -49,7 +49,7 @@ def train(
         data = data.cuda()
         optimizer.zero_grad()
         
-        recon_batch, z, mu, log_var = model(data)
+        recon_batch, mu, log_var = model(data)
         loss, mse_loss, KLD_loss = loss_fn(recon_batch, data, mu, log_var, beta_vae)
         loss.backward()
 
@@ -82,14 +82,26 @@ def train(
                 ##print(data.to("cpu")[:,0].shape)
                 #print(recon_batch.to("cpu")[:,0].shape)
                 tb_logger.add_image(
-                    tag="input/Training", 
+                    tag="input_ch1/Training", 
                     img_tensor=data.to("cpu")[0,0], 
                     global_step=step,
                     dataformats="HW"
                 )
                 tb_logger.add_image(
-                    tag="reconstruction/Training", 
+                    tag="reconstruction_ch1/Training", 
                     img_tensor=recon_batch.to("cpu")[0,0], 
+                    global_step=step,
+                    dataformats="HW"
+                )
+                tb_logger.add_image(
+                    tag="input_ch2/Training", 
+                    img_tensor=data.to("cpu")[0,1], 
+                    global_step=step,
+                    dataformats="HW"
+                )
+                tb_logger.add_image(
+                    tag="reconstruction_ch2/Training", 
+                    img_tensor=recon_batch.to("cpu")[0,1], 
                     global_step=step,
                     dataformats="HW"
                 )
@@ -119,7 +131,7 @@ def validate(
     }
     for batch_idx, (data, _) in enumerate(val_loader):
         data = data.cuda()
-        recon_batch, z, mu, log_var = model(data)
+        recon_batch, mu, log_var = model(data)
         loss, mse_loss, KLD_loss = loss_fn(recon_batch, data, mu, log_var,beta_vae)
 
         for (key, value),loss_funcs in zip(losses.items(),[loss,mse_loss,KLD_loss]):
@@ -203,13 +215,13 @@ def launch_tensorboard(log_dir):
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    model_name = "Resnet18_VAE_04_norm"
+    model_name = "unet_encdec_beta_01"
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
 
     checkpoint_dir.mkdir(exist_ok=True)
     data_location = "/mnt/efs/dlmbl/G-et/data/live-TLS"
-    folder_imgs = data_location +"/"+'Control_Dataset_4TP_Normalized_Across_Dataset'
+    folder_imgs = data_location +"/"+'Control_Dataset_4TP_Normalized'
     metadata = data_location + "/" +'Control_Dataset_4TP_Ground_Truth'
 
     tensorboard_process = launch_tensorboard("unet_runs")
@@ -244,18 +256,39 @@ if __name__ == "__main__":
     print((y,x))
 
     NUM_EPOCHS = 100
+    n_fmaps = 16
+    depth = 5
     z_dim = 20
+    upsample_mode = "bicubic"
     batch_size = 5
     beta_vae = 1e-7
     model_dict = {
         'num_epochs': NUM_EPOCHS,
-        'in_channels': in_channels,
+        'n_fmaps': n_fmaps,
+        'depth': depth,
         'z_dim': z_dim,
-        'batch_size':batch_size,
-        'beta_vae':beta_vae,
+        'upsample_mode':upsample_mode,
+        'batch_size': batch_size,
+        'beta_vae': beta_vae
     }
-    
-    model = VAEResNet18(nc=in_channels,z_dim=z_dim)
+    encoder = UNetEncoder(
+        in_channels = in_channels,
+        n_fmaps = n_fmaps,
+        depth = depth,
+        in_spatial_shape = (y,x),
+        z_dim = z_dim,
+    )
+
+    decoder = UNetDecoder(
+        in_channels = in_channels,
+        n_fmaps = n_fmaps,
+        depth = depth,
+        in_spatial_shape = (y,x),
+        z_dim = z_dim,
+        upsample_mode=upsample_mode
+    )
+
+    model = VAE(encoder, decoder)
     dataloader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
     dataloader_val = DataLoader(validation_set, batch_size=batch_size, shuffle=False, pin_memory=True)
 
