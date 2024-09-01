@@ -2,6 +2,10 @@
 *.zarr
 *.tiff
 *.tif
+**/data/
+**/mnist_data/
+**/data/
+**/mnist_data/
 /notebooks/splits
 /scripts/embed_time_runs
 
@@ -129,5 +133,3 @@ pyrepo
 
 # OS Files
 .DS_Store
-
-# 
