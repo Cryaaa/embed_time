@@ -8,7 +8,7 @@ import gunpowder as gp
 from funlib.persistence import Array
 import dask #like np but on big data
 #from embed_time.model import ResNet2D
-from embed_time.vae import ResizeConv2d
+from embed_time.vae import VAEResNet18
 import torch
 import re
 import numpy as np
@@ -76,48 +76,65 @@ for test_zarr in (datapath / "zarrtransposed").iterdir():
     source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
     source += AddLabel(label, gtlabel) # "for this testzar my label is x"
     sources.append(source)
-    #break
+    break
 
 source = tuple(sources) + gp.RandomProvider()
 
 # Augment image
 source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(10.0, 10.0), rotate=True, spatial_dims = 2) # augment image
 #TODO: Add more augmentations
-batch_size = 32
+batch_size = 16
 source += gp.Stack(batch_size) # stack the batch
 
 # write request
 request = gp.BatchRequest()
-size = 320
+size = 64
 request.add(raw, (size, size))
 request.add(mask, (size, size))
 request[label] = gp.ArraySpec(nonspatial=True)
 
 output_classes = 256 # dimensions of the latent space
 input_channels = 3
-n_iter = 10
+n_iter = 500
 
-#self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
-vae = ResizeConv2d(in_channels=input_channels, 
-                   out_channels=output_classes,
-                    kernel_size=3,
-                    scale_factor=2,
-                    )
+vae = VAEResNet18(nc = input_channels, z_dim = 16)
+loss_function: torch.nn.Module = torch.nn.MSELoss()
+kl_divergence = torch.nn.KLDivLoss()
+optimizer = torch.optim.Adam(vae.parameters(), lr=0.001)
+
+device = torch.device("cuda")
+
+vae.train()
+vae = vae.to(device)
+
+losses = []
 with gp.build(source):
     for n in range(n_iter): # number of iterations
         batch = source.request_batch(request)
+        
         x = batch.arrays[raw].data
         x_torch = torch.tensor(x, dtype=torch.float32)
-        # print(x.shape, type(x))
-        # #y = batch.arrays[mask].data
-        # print(x.shape)
-        pred = vae(x_torch)
+
+        x_torch = x_torch.to(device)
+        optimizer.zero_grad()
+
+
+        x, z = vae(x_torch) # data goes to the foreward function
+        loss = loss_function(x, x_torch) + kl_divergence(z, torch.zeros_like(z))
+        losses.append(loss.item())
+        loss.backward()
+        optimizer.step()
+
+        # add a loss-function
+x_out = x.cpu().detach().numpy()
+plt.imshow(x.cpu().detach().numpy()[0][0])
+
+
+plt.plot(losses)
+plt.show()
+
         # TODO: add loss function 
-        #print(pred.shape)
-        # plt.imshow(x[0].transpose(1, 2, 0))
-        # plt.show()
-        # plt.imshow(y[0])
-        # plt.show()
+
 
 
 # treat this as dataloader. Same pipeline for sick and treated data 
