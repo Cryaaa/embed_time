@@ -15,14 +15,9 @@ from embed_time.transforms import CustomToTensor, SelectRandomTPNumpy, CustomCro
 from embed_time.dataloader_rs import LiveTLSDataset
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-import umap
-import numpy as np
-import pandas as pd
-
+tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
 base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-checkpoint_dir = Path(base_dir) / "2024-09-01_Resnet18_VAE_04_norm_checkpoints"
+checkpoint_dir = Path(base_dir) / "2024-09-01_Resnet18_VAE_03_tinybeta_checkpoints"
 print(checkpoint_dir)
 
 checkpoint_dir.mkdir(exist_ok=True)
@@ -100,8 +95,79 @@ fig, ax = plt.subplots(2,2,figsize=(2*plot_size,2*plot_size))
 ax[0,0].imshow(test_image.squeeze(0).numpy()[0])
 ax[0,1].imshow(test_image.squeeze(0).numpy()[1])
 ax[1,0].imshow(result[0])
-ax[1,1].imshow(result[1])# %%
-checkpoint_unet = Path(base_dir)/ '2024-09-01_unet_encdec_beta_norm_01_checkpoints'
+ax[1,1].imshow(result[1])
+# %%
+means = []
+variances = []
+labels = []
+for i,first in enumerate(dataloader):
+    image, label = first
+    _, z, mean, var = model(image.to(device))
+    means.append(mean.detach().cpu().flatten())
+    variances.append(var.detach().cpu().flatten())
+    labels.append(label[0])
+# %%
+import numpy as np
+import pandas as pd
+
+dataframe = pd.DataFrame(np.array(means),columns = [f"LD_mu_{i+1}" for i in range(np.array(means).shape[1])])
+
+dataframe
+# %%
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+components = 5
+pca_transformer = PCA(n_components = components)
+pca_out = pca_transformer.fit_transform(dataframe)
+pca_frame = pd.DataFrame(pca_out,columns=[f"PC_{i+1}" for i in range(components)])
+pca_frame["Label"] = labels
+pca_frame
+# %%
+sns.scatterplot(pca_frame,x="PC_1",y="PC_2",hue="Label",alpha = 0.7)
+# %%
+import umap
+
+umap_transformer = umap.UMAP()
+umap_out = umap_transformer.fit_transform(dataframe)
+
+umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
+
+# %%
+umap_df["Label"] = labels
+
+sns.scatterplot(umap_df,x="UMAP_1",y="UMAP_2",hue="Label",alpha=0.8)
+# %%
+latents = []
+labels_more_samples = []
+for j in range(10):
+    for i,first in enumerate(dataloader):
+        image, label = first
+        _, z, mean, var = model(image.to(device))
+        latents.append(z.detach().cpu().flatten())
+        labels_more_samples.append(label[0])
+# %%
+latents = np.array(latents)
+latents.shape
+# %%
+dataframe_sampled = pd.DataFrame(np.array(latents),columns = [f"LD_mu_{i+1}" for i in range(np.array(latents).shape[1])])
+dataframe_sampled
+# %%
+pca_transformer = PCA(n_components = components)
+pca_out = pca_transformer.fit_transform(dataframe_sampled)
+pca_frame = pd.DataFrame(pca_out,columns=[f"PC_{i+1}" for i in range(components)])
+pca_frame["Label"] = labels_more_samples
+sns.scatterplot(pca_frame,x="PC_1",y="PC_2",hue="Label",alpha = 0.5)
+# %%
+umap_transformer = umap.UMAP()
+umap_out = umap_transformer.fit_transform(dataframe_sampled)
+
+umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
+# %%
+umap_df["Label"] = labels_more_samples
+
+sns.scatterplot(umap_df,x="UMAP_1",y="UMAP_2",hue="Label",alpha=0.5)
+# %%
+checkpoint_unet = Path(base_dir)/ '2024-09-01_unet_encdec_beta_01_checkpoints'
 dict_unet = torch.load(checkpoint_unet/'checkpoint_99.pth')
 dict_unet.keys()
 # %%
@@ -140,6 +206,36 @@ ax[0,0].imshow(test_image.squeeze(0)[0])
 ax[0,1].imshow(test_image.squeeze(0)[1])
 ax[1,0].imshow(result.detach().cpu().squeeze(0)[0])
 ax[1,1].imshow(result.detach().cpu().squeeze(0)[1])
+# %%
+latents_unet = []
+labels_unet = []
+for j in range(10):
+    for i,first in enumerate(dataloader):
+        image, label = first
+        _, mean, var = model_unet(image.to(device))
+        z = model_unet.sampling(mean,var)
+        latents_unet.append(z.detach().cpu())
+        labels_unet.append(label[0])
+latents_unet = np.array(latents_unet)
+latents_unet
+# %%
+dataframe_unet = pd.DataFrame(np.array(latents_unet.squeeze()),columns = [f"LD_mu_{i+1}" for i in range(np.array(latents_unet.squeeze()).shape[1])])
+dataframe_unet
+# %%
+pca_transformer = PCA(n_components = components)
+pca_out = pca_transformer.fit_transform(dataframe_unet)
+pca_frame = pd.DataFrame(pca_out,columns=[f"PC_{i+1}" for i in range(components)])
+pca_frame["Label"] = labels_unet
+sns.scatterplot(pca_frame,x="PC_1",y="PC_2",hue="Label",alpha = 0.5)
+# %%
+umap_transformer = umap.UMAP()
+umap_out = umap_transformer.fit_transform(dataframe_unet)
+
+umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
+# %%
+umap_df["Label"] = labels_unet
+
+sns.scatterplot(umap_df,x="UMAP_1",y="UMAP_2",hue="Label",alpha=0.5)
 # %%
 from embed_time.transforms import SelectSpecificTPNumpy
 
@@ -183,17 +279,13 @@ latents_unet = np.array(latents_unet)
 latents_unet
 # %%
 dataframe_unet = pd.DataFrame(np.array(latents_unet.squeeze()),columns = [f"LD_mu_{i+1}" for i in range(np.array(latents_unet.squeeze()).shape[1])])
-tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
-if not os.path.isdir(tabular_data):
-    os.mkdir(tabular_data)
+dataframe_unet.to_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_OldNorm.csv")
 pd.DataFrame({
     "Label":labels_unet,
     "Time":timepoints_unet,
-}).to_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_GoodNorm_Annotations.csv")
-dataframe_unet.to_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_GoodNorm.csv")
+}).to_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_OldNorm_Annotations.csv")
 dataframe_unet
 # %%
-components=5
 pca_transformer = PCA(n_components = components)
 pca_out = pca_transformer.fit_transform(dataframe_unet)
 pca_frame = pd.DataFrame(pca_out,columns=[f"PC_{i+1}" for i in range(components)])
@@ -255,7 +347,7 @@ sc = ax.scatter(x, y, z, c=colors, marker='o',alpha=0.3)
 cbar = plt.colorbar(sc)
 cbar.set_label('Time')
 
-ax.view_init(elev=20, azim=100)
+ax.view_init(elev=20, azim=20)
 # %%
 umap_transformer = umap.UMAP(n_neighbors = 30)
 umap_out = umap_transformer.fit_transform(dataframe_unet)
@@ -282,7 +374,7 @@ for tp in range(4):
 latents = np.array(latents)
 latents
 # %%
-tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
+import pandas as pd
 flat_latt = np.array(
     [lat.flatten() for lat in latents]
 ).squeeze()
@@ -293,11 +385,11 @@ dataframe = pd.DataFrame(
         for i in range(flat_latt.shape[1])
     ]
 )
-dataframe.to_csv(Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_GoodNorm.csv")
+dataframe.to_csv(Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_OldNorm.csv")
 pd.DataFrame({
     "Label":labels,
     "Time":timepoints,
-}).to_csv(Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_GoodNorm_Annotations.csv")
+}).to_csv(Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_OldNorm_Annotations.csv")
 dataframe
 # %%
 pca_transformer = PCA(n_components = components)
@@ -347,7 +439,7 @@ sc = ax.scatter(x, y, z, c=colors, marker='o',alpha=0.5)
 #cbar = plt.colorbar(sc)
 #cbar.set_label('Labels')
 
-ax.view_init(elev=30, azim=50)
+ax.view_init(elev=30, azim=20)
 # %%
 
 # Create the 3D scatter plot
@@ -371,5 +463,5 @@ sc = ax.scatter(x, y, z, c=colors, marker='o',alpha=0.5)
 cbar = plt.colorbar(sc)
 cbar.set_label('Time')
 
-ax.view_init(elev=60, azim=100)
+ax.view_init(elev=20, azim=100)
 # %%
