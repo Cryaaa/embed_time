@@ -21,13 +21,13 @@ from datetime import datetime
 import yaml
 
 # Parameters
-model_name = "test_linear_ac"
-run_name= "Linear_dataset_split_2"
+model_name = "test_linear_ac_latent_128"
+run_name= "Linear_dataset_split_17_latent_128"
 latent_space_dim = 64
 beta = 1e-5
 n_epochs = 10
 
-csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv' 
+csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_17_sampled.csv' 
 # csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_804.csv'
 
 def read_config(yaml_path):
@@ -62,7 +62,6 @@ parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/logs/'
 train_ratio = 0.7
 val_ratio = 0.15
-num_workers = -1
 #change to false if you already have tensorboard running
 find_port = True
 #%% Define the logger for tensorboard
@@ -114,6 +113,7 @@ dataloader = DataLoader(
     dataset, 
     batch_size=16, 
     shuffle=True, 
+    num_workers=8,
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
 
