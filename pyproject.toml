@@ -25,7 +25,10 @@ dependencies = [
     "matplotlib",
     "tqdm",
     "pathlib",
-    "torch"
+    "torch",
+    "scikit-learn",
+    "umap-learn",
+    "seaborn",
 ]
 [project.optional-dependencies]
 dev = [
@@ -38,5 +41,8 @@ dev = [
     "tqdm",
     "pathlib",
     "torch",
-    "tensorboard"
+    "tensorboard",
+    "scikit-learn",
+    "umap-learn",
+    "seaborn",
 ]
