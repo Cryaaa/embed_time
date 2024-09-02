@@ -41,7 +41,7 @@ def print_cell_data_shapes(dataset_image):
 
 def main(args):
     if args.generate_split and args.full:
-        DatasetSplitter(args.parent_dir, args.output_file, args.train_ratio, args.val_ratio, args.num_workers).generate_split()
+        DatasetSplitter(args.parent_dir, args.output_dir, args.train_ratio, args.val_ratio, args.num_workers).generate_split()
 
     normalizations = v2.Compose([v2.CenterCrop(args.crop_size)])
 
@@ -101,7 +101,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VAE architecture for optical pooled screening data")
     parser.add_argument("--parent_dir", type=str, default="/mnt/efs/dlmbl/S-md/", help="Parent directory for dataset")
-    parser.add_argument("--output_file", type=str, default="/mnt/efs/dlmbl/G-et/csv/split_804.csv", help="Output file for dataset split")
+    parser.add_argument("--output_dir", type=str, default="/mnt/efs/dlmbl/G-et/csv/", help="Output file for dataset split")
     parser.add_argument("--generate_split", action="store_true", default=True, help="Generate dataset split")
     parser.add_argument("--train_ratio", type=float, default=0.7, help="Train ratio for dataset split")
     parser.add_argument("--val_ratio", type=float, default=0.15, help="Validation ratio for dataset split")

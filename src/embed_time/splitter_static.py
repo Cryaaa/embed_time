@@ -11,9 +11,9 @@ import argparse
 
 
 class DatasetSplitter:
-    def __init__(self, parent_dir, output_file, train_ratio=0.7, val_ratio=0.15, num_workers=-1):
+    def __init__(self, parent_dir, output_dir, train_ratio=0.7, val_ratio=0.15, num_workers=-1):
         self.parent_dir = Path(parent_dir)
-        self.output_file = Path(output_file)
+        self.output_dir = Path(output_dir)
         self.train_ratio = train_ratio
         self.val_ratio = val_ratio
         self.num_workers = num_workers
@@ -73,7 +73,7 @@ class DatasetSplitter:
         return cell_data
 
     def generate_split(self):
-        self.output_file.parent.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(exist_ok=True)
         
         genes = list(self.parent_dir.glob("*.zarr"))
         genes = [gene for gene in genes if any(gene.iterdir())]
@@ -90,8 +90,8 @@ class DatasetSplitter:
         # Flatten the list of lists
         all_cell_data = [item for sublist in results for item in sublist]
 
-        print("Creating DataFrame and saving CSV...")
         df = pd.DataFrame(all_cell_data, columns=["gene", "barcode", "stage", "cell_idx", "split"])
-        df.to_csv(self.output_file, index=False)
-        print(f"Dataset split CSV saved to {self.output_file}")
+        output_file = self.output_dir / f"dataset_split_{len(genes)}.csv"
+        df.to_csv(output_file, index=False)
+        print(f"Dataset split CSV saved to {output_file}")
 

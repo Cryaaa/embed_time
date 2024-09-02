@@ -8,6 +8,7 @@
 **/mnist_data/
 /notebooks/splits
 /scripts/embed_time_runs
+/scripts/graphs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

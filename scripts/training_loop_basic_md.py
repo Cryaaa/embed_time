@@ -1,4 +1,4 @@
-#%%
+# Imports
 import os
 from embed_time.splitter_static import DatasetSplitter
 from embed_time.dataset_static import ZarrCellDataset
@@ -15,8 +15,10 @@ import pandas as pd
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import torchview
 import yaml
 
+# Yaml file reader
 def read_config(yaml_path):
     with open(yaml_path, 'r') as file:
         config = yaml.safe_load(file)
@@ -40,18 +42,13 @@ if torch.cuda.is_available():
 else:
     device = torch.device("cpu")
     
-#%% Set base values
-
-# Usage example:
+# Basic values for logging 
 parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = parent_dir + 'training_logs/'
 model_name = "static_vanilla_vae_md_10"
 run_name= "initial_params"
-train_ratio = 0.7
-val_ratio = 0.15
-num_workers = -1
 find_port = True
-#%% Define the logger for tensorboard
+
 # Function to find an available port
 def find_free_port():
     import socket
@@ -74,21 +71,20 @@ def launch_tensorboard(log_dir):
 # Launch tensorboard and click on the link to view the logs.
 if find_port:
     tensorboard_process = launch_tensorboard("embed_time_static_runs")
-
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
+# Define variables for the dataset read in
 csv_file = '/mnt/efs/dlmbl/G-et/csv/split_804.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
 transform = "masks"
-crop_size = 100
+crop_size = 96
 normalizations = v2.Compose([v2.CenterCrop(crop_size)])
 yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
 dataset_mean, dataset_std = read_config(yaml_file_path)
 
 # Create the dataset
 dataset = ZarrCellDataset(parent_dir, csv_file, split, channels, transform, normalizations, None, dataset_mean, dataset_std)
-#%% Generate Dataloader
 
 # Define the metadata keys
 metadata_keys = ['gene', 'barcode', 'stage']
@@ -102,9 +98,8 @@ dataloader = DataLoader(
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
 
-#%% Create the model
-
-encoder = Encoder(input_shape=(100, 100),
+# Create the model
+encoder = Encoder(input_shape=(96, 96),
                   x_dim=4,
                   h_dim1=16,
                   h_dim2=8,
@@ -113,20 +108,32 @@ decoder = Decoder(z_dim=4,
                   h_dim1=8,
                   h_dim2=16,
                   x_dim=4,
-                  output_shape=(100, 100))
+                  output_shape=(96, 96))
 
 # Initiate VAE
-vae = VAE(encoder, decoder).to(device)
+vae = VAE(encoder, decoder)
 
-#%% Define Optimizar
+torchview.draw_graph(
+    vae,
+    dataset[0]['cell_image'].unsqueeze(dim=0),
+    roll=True,
+    depth=3,  # adjust depth to zoom in.
+    device="cpu",
+    save_graph=True,
+    filename="graphs/" + model_name
+)
+
+vae = vae.to(device)
+
+# Define the optimizer
 optimizer = torch.optim.Adam(vae.parameters(), lr=1e-4)
 
 def loss_function(recon_x, x, mu, logvar):
-    BCE = F.mse_loss(recon_x, x, reduction='mean')
+    MSE = F.mse_loss(recon_x, x, reduction='mean')
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return BCE, KLD   
+    return MSE, KLD   
 
-#%% Define training function
+# Define training function
 training_log = []
 epoch_log = []
 loss_per_epoch = 0
@@ -152,8 +159,8 @@ def train(
         optimizer.zero_grad()
         
         recon_batch, mu, logvar = vae(data)
-        BCE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = BCE + KLD  
+        MSE, KLD  = loss_function(recon_batch, data, mu, logvar)
+        loss = MSE + KLD * 1e-4  
         
         loss.backward()
         train_loss += loss.item()
@@ -179,12 +186,10 @@ def train(
                 'len_data': len(batch['cell_image']),
                 'len_dataset': len(loader.dataset),
                 'loss': loss.item() / len(batch['cell_image']),
-                'BCE': BCE.item() / len(batch['cell_image']),
+                'MSE': MSE.item() / len(batch['cell_image']),
                 'KLD': KLD.item() / len(batch['cell_image'])
             }
             training_log.append(row)
-
-
 
         # log to tensorboard
         if tb_logger is not None:
@@ -224,22 +229,17 @@ def train(
                 tb_logger.add_images(
                     tag="reconstruction_3", img_tensor=predicted_image[:,3:4,...], global_step=step
                 )
-
-                
-                metadata = list(zip(batch['gene'], batch['barcode'], batch['stage']))
+                metadata = [list(item) for item in zip(batch['gene'], batch['barcode'], batch['stage'])]
                 tb_logger.add_embedding(
-                    torch.rand_like(mu), metadata=metadata, label_img = input_image[:,2:3,...],global_step=step
+                    torch.rand_like(mu), metadata=metadata, label_img = input_image[:,2:3,...], global_step=step, metadata_header=metadata_keys
                 )
-               
-                # TODO saving model
-            
+                           
         # early stopping
         if early_stop and batch_idx > 5:
             print("Stopping test early!")
             break
     
     # save the DF
-
     epoch_raw = {
                 'epoch': epoch,
                 'Average Loss': train_loss / len(dataloader.dataset)}
@@ -248,8 +248,7 @@ def train(
     print('====> Epoch: {} Average loss: {:.4f}'.format(
             epoch, train_loss / len(dataloader.dataset)))
 
-#%% Training loop
-
+# Training loop
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
 checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
 log_path = output_path + "logs/static/"+ folder_suffix + "/"
