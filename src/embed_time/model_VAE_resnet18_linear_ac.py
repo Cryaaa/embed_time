@@ -1,7 +1,6 @@
 import torch
 from torch import nn, optim
 import torch.nn.functional as F
-import numpy as np
 
 class ResizeConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
@@ -9,21 +8,10 @@ class ResizeConv2d(nn.Module):
         self.scale_factor = scale_factor
         self.mode = mode
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=kernel_size//2)
+    
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         x = self.conv(x)
-        return x
-
-class ResizeArbitrary(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, out_size, mode='nearest'):
-        super().__init__()
-        self.out_size = out_size
-        self.mode = mode
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=kernel_size//2)
-
-    def forward(self, x):
-        x = F.interpolate(x, size=self.out_size, mode=self.mode)
-        x = torch.relu(self.conv(x))
         return x
 
 class BasicBlockEnc(nn.Module):
@@ -74,6 +62,7 @@ class BasicBlockDec(nn.Module):
                 ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride),
                 nn.BatchNorm2d(planes)
             )
+    
     def forward(self, x):
         out = torch.relu(self.bn2(self.conv2(x)))
         out = self.bn1(self.conv1(out))
@@ -84,7 +73,7 @@ class BasicBlockDec(nn.Module):
 
 class ResNet18Enc(nn.Module):
 
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3, linear_downsample_factor = 8):
+    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
         super().__init__()
         self.in_planes = 64
         self.z_dim = z_dim
@@ -117,7 +106,7 @@ class ResNet18Enc(nn.Module):
 
 class ResNet18Dec(nn.Module):
 
-    def __init__(self, spatial_dim_bottle, num_Blocks=[2,2,2,2], z_dim=10, nc=3, linear_downsample_factor =8):
+    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
         super().__init__()
         self.in_planes = 512
         self.nc = nc
@@ -151,38 +140,24 @@ class ResNet18Dec(nn.Module):
         x = self.layer1(x)
         x = torch.sigmoid(self.conv1(x))
         return x
-
-
-class VAEResNet18_Linear(nn.Module):
-    def __init__(self, nc, z_dim, input_spatial_dim):
+    
+    
+class VAEResNet18_linear(nn.Module):
+    
+    def __init__(self, nc, z_dim):
         super().__init__()
-        self.in_spatial_shape = input_spatial_dim
-        self.spat_shape_bottle = self.compute_spatial_shape(4)
-        self.spat_shape_bottle = (self.spat_shape_bottle[0],self.spat_shape_bottle[1])
         self.encoder = ResNet18Enc(nc=nc, z_dim=z_dim)
-        self.decoder = ResNet18Dec(nc=nc, z_dim=z_dim, spatial_dim_bottle=self.spat_shape_bottle)
-        self.enc_linear = nn.Sequential(
-
-        )
+        self.decoder = ResNet18Dec(nc=nc, z_dim=z_dim)
 
     def forward(self, x):
-        mean, logvar = self.encoder(x)
-        z = self.reparameterize(mean, logvar)
+        mu, log_var = self.encoder(x)
+        z = self.reparameterize(mu, log_var)
         x = self.decoder(z)
-        return x, z, mean, logvar
-
+        # return x, z
+        return x, mu, log_var
+    
     @staticmethod
     def reparameterize(mean, logvar):
         std = torch.exp(logvar / 2) # in log-space, squareroot is divide by two
         epsilon = torch.randn_like(std)
         return epsilon * std + mean
-
-    def compute_spatial_shape(self, level: int) -> tuple[int, int]:
-        # TODO Add warning when shape is odd before maxpool
-        spatial_shape = np.array(self.in_spatial_shape)
-        if level == 0:
-            return spatial_shape
-        spatial_shape = np.array(self.compute_spatial_shape(level-1)) // 2 
-        if any([s%2 != 0 for s in spatial_shape]):
-            raise ValueError("Can't Decode Because Input Dimension is Lost during Downsampling")
-        return spatial_shape
