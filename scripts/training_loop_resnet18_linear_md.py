@@ -43,10 +43,7 @@ else:
     device = torch.device("cpu")
     
 # Basic values for logging 
-parent_dir = '/mnt/efs/dlmbl/S-md/'
-output_path = parent_dir + 'training_logs/'
-model_name = "static_resnet_linear_vae_md_10"
-run_name= "initial_params"
+model_name = "static_resnet_linear_vae_md"
 find_port = True
 
 # Function to find an available port
@@ -74,6 +71,7 @@ if find_port:
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Define variables for the dataset read in
+parent_dir = '/mnt/efs/dlmbl/S-md/'
 csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
@@ -149,7 +147,7 @@ def train(
         
         recon_batch, z, mu, logvar = vae(data)
         MSE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = MSE + KLD * 1e-8
+        loss = MSE + KLD * 1e-5
         
         loss.backward()
         train_loss += loss.item()
@@ -244,9 +242,18 @@ def train(
             epoch, train_loss / len(dataloader.dataset)))
 
 # Training loop
+output_dir = '/mnt/efs/dlmbl/G-et/'
+run_name= "resnet_linear_test"
+
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
-checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
-log_path = output_path + "logs/static/"+ folder_suffix + "/"
+log_path = output_dir + "logs/static/Matteo/"+ folder_suffix + "/"
+checkpoint_path = output_dir + "checkpoints/static/Matteo/" + folder_suffix + "/"
+
+if not os.path.exists(log_path):
+    os.makedirs(log_path)
+if not os.path.exists(checkpoint_path):
+    os.makedirs(checkpoint_path)
+
 for epoch in range(1, 100):
     train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
     filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
@@ -262,4 +269,4 @@ for epoch in range(1, 100):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_per_epoch 
     }
-    torch.save(checkpoint, output_path + filename_suffix + str(epoch) + "checkpoint.pth")
+    torch.save(checkpoint, checkpoint_path + filename_suffix + str(epoch) + "checkpoint.pth")
