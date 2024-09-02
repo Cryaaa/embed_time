@@ -4,7 +4,9 @@ from embed_time.splitter_static import DatasetSplitter
 from embed_time.dataset_static import ZarrCellDataset
 from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
-from embed_time.model_VAE_resnet18 import ResNet18Enc, ResNet18Dec, VAEResNet18
+from embed_time.model_VAE_resnet18 import VAEResNet18
+from embed_time.model_VAE_resnet18_linear import VAEResNet18_linear
+
 import torch
 from torchvision.transforms import v2
 from torch.utils.data import DataLoader
@@ -44,15 +46,16 @@ else:
 #%% Generate Dataset
 
 # Usage example:
+latent_space_dim = 64
 parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/logs/'
-model_name = "test_delete-Vae"
+model_name = "test_delete-Vae_lienar"
 run_name= "Test_run"
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
 #change to false if you already have tensorboard running
-find_port = False
+find_port = True
 #%% Define the logger for tensorboard
 # Function to find an available port
 def find_free_port():
@@ -79,7 +82,7 @@ if find_port:
 
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
-csv_file = '/mnt/efs/dlmbl/G-et/csv/example_split.csv'
+csv_file = '/mnt/efs/dlmbl/G-et/csv/example_split.csv' #split_804.csv
 split = 'train'
 channels = [0, 1, 2, 3]
 transform = "masks"
@@ -107,20 +110,8 @@ dataloader = DataLoader(
 
 
 #%% Create the model
-
-# encoder = Encoder(input_shape=(100, 100),
-#                   x_dim=4,
-#                   h_dim1=16,
-#                   h_dim2=8,
-#                   z_dim=4)
-# decoder = Decoder(z_dim=4,
-#                   h_dim1=8,
-#                   h_dim2=16,
-#                   x_dim=4,
-#                   output_shape=(100, 100))
-
 # Initiate VAE
-model = VAEResNet18(nc=4, z_dim=10).to(device)
+model = VAEResNet18_linear(nc=4, z_dim=latent_space_dim).to(device)
 
 #%% Define Optimizar
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
@@ -244,6 +235,7 @@ def train(
                 tb_logger.add_embedding(
                     torch.flatten(mu, start_dim=1), metadata=metadata, 
                     label_img = input_image[:,2:3,...], global_step=step,
+                    metadata_header = metadata_keys
 
                 )
                
@@ -286,5 +278,4 @@ for epoch in range(1, 10):
         'optimizer_state_dict': optimizer.state_dict(),
         'loss': loss_per_epoch 
     }
-    print(checkpoint_path + str(epoch) + "checkpoint.pth")
     torch.save(checkpoint, checkpoint_path + str(epoch) + "checkpoint.pth")
