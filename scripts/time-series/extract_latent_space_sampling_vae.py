@@ -1,25 +1,14 @@
 import torch
-import matplotlib.pyplot as plt
 from embed_time.dataloader_rs import LiveTLSDataset
-from embed_time.model import VAE
-from embed_time.UNet_based_encoder_decoder import UNetDecoder, UNetEncoder
 import torch
 from torch.utils.data import DataLoader
 from pathlib import Path
-import seaborn as sns
-import os
 import torchvision.transforms as trans
 from torchvision.transforms import v2
-from embed_time.transforms import CustomToTensor, SelectRandomTPNumpy, CustomCropCentroid
+from embed_time.transforms import CustomToTensor, CustomCropCentroid, SelectSpecificTPNumpy
 from embed_time.dataloader_rs import LiveTLSDataset
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-import umap
-import numpy as np
-import pandas as pd
-from embed_time.transforms import SelectSpecificTPNumpy
 from embed_time.model_VAE_resnet18 import VAEResNet18
 from embed_time.model_VAE_resnet18_linear_botlnek import VAEResNet18LinBotNek
 from tqdm.auto import tqdm
@@ -36,7 +25,7 @@ metadata_columns=["Axes","Run","Plate","ID"]
 do_latent_flattening = False
 tabular_data = Path("/mnt/efs/dlmbl/G-et/tabular_data")
 table_name = "LinearVAE_01_bicubic_latents_w_annot.csv"
-
+input_spatial_dim = (576,576)
 
 def load_vae_from_checkpoint(
         checkpoint_dir,
@@ -52,7 +41,7 @@ def load_vae_from_checkpoint(
         model = VAEResNet18LinBotNek(
             nc=model_params['in_channels'],
             z_dim=model_params['z_dim'],
-            input_spatial_dim=(576,576)
+            input_spatial_dim=input_spatial_dim
         )
     else:
         model = VAEResNet18(
@@ -61,6 +50,12 @@ def load_vae_from_checkpoint(
         )
     model_params = dict['model']
     model.load_state_dict(model_params)
+    
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else "cpu"
+    )
+    model.to(device)
+    model.eval()
     return model
 
 def sample_latent_space_per_timepoint(
@@ -72,10 +67,10 @@ def sample_latent_space_per_timepoint(
         metadata_columns =["Run","Plate","ID"],
         flatten_latents = True,
 ):
+    
     device = torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"
     )
-    model.to(device)
 
     latents = []
     labels = []
@@ -90,14 +85,14 @@ def sample_latent_space_per_timepoint(
                 else: 
                     image, label = first
                 _, z, mean, var = model(image.to(device))
-                for j in range(n_samples_per_tp):
+                for _ in range(n_samples_per_tp):
                     z = model.reparameterize(mean,var)
                     if flatten_latents:
                         latents.append(torch.flatten(z.detach().cpu(),start_dim=1))
                     else:
                         latents.append(z.detach().cpu())
                     labels.append(label)
-                    timepoints.append([tp for i in range(len(z))])
+                    timepoints.append([tp for _ in range(len(z))])
                     metadatas.append(metdat)
     
     latents = np.concat(np.array(latents),axis=0)

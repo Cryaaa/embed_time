@@ -8,8 +8,8 @@ from pathlib import Path
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 table_location = Path("/mnt/efs/dlmbl/G-et/tabular_data")
-file = "LinearVAE_02_bicubic_latents_w_annot.csv"
-plot_outs = table_location / "LinearVAE_02_bicubic_latents"
+file = "LinearVAE_01_bicubic_latents_w_annot.csv"
+plot_outs = table_location / "LinearVAE_01_bicubic_latents"
 plot_outs.mkdir(exist_ok=True)
 dataframe = pd.read_csv(table_location / file)
 annotation_columns = ["Label","Time","Axes","Run","Plate","ID"]
