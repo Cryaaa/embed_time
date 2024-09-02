@@ -24,7 +24,7 @@ dependencies = [
     "scikit-image",
     "matplotlib",
     "tqdm",
-    "pathlib"
+    "pathlib",
     "torch"
 ]
 [project.optional-dependencies]
@@ -36,7 +36,7 @@ dev = [
     "scikit-image",
     "matplotlib",
     "tqdm",
-    "pathlib"
+    "pathlib",
     "torch",
     "tensorboard"
 ]
