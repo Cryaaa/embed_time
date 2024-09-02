@@ -94,24 +94,8 @@ class ResNet18Enc(nn.Module):
         self.layer2 = self._make_layer(BasicBlockEnc, 128, num_Blocks[1], stride=2)
         self.layer3 = self._make_layer(BasicBlockEnc, 256, num_Blocks[2], stride=2)
         self.layer4 = self._make_layer(BasicBlockEnc, 512, num_Blocks[3], stride=2)
-<<<<<<< HEAD:src/embed_time/model_VAE_resnet18_linear.py
-        self.avg_pool = nn.AdaptiveAvgPool2d(output_size=2)
-        self.fc_layer_len = 512 * 2 * 2
-        self.linear_block = nn.Sequential(
-            nn.Linear(
-                self.fc_layer_len,
-                self.fc_layer_len
-            ), 
-            nn.ReLU(),
-            nn.Linear(
-                self.fc_layer_len,
-                z_dim * 2
-            )
-        )
-=======
         self.linear = nn.Linear(int(512*(128/2**len(num_Blocks))**2), 2 * z_dim, bias = False)
 
->>>>>>> abd359c (linear model AC):src/embed_time/model_VAE_resnet18_linear_ac.py
     def _make_layer(self, BasicBlockEnc, planes, num_Blocks, stride):
         strides = [stride] + [1]*(num_Blocks-1)
         layers = []
@@ -126,16 +110,9 @@ class ResNet18Enc(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-<<<<<<< HEAD:src/embed_time/model_VAE_resnet18_linear.py
-        x = self.avg_pool(x)
-        x = x.view(-1,self.fc_layer_len)
-        x = self.linear_block(x)
-        mu, logvar = torch.chunk(x, 2, dim=1)
-=======
         x = torch.flatten(x, start_dim=1, end_dim=-1).unsqueeze(1)
         x = torch.relu(self.linear(x))
         mu, logvar = torch.chunk(x, 2, dim=2)
->>>>>>> abd359c (linear model AC):src/embed_time/model_VAE_resnet18_linear_ac.py
         return mu, logvar
 
 class ResNet18Dec(nn.Module):
@@ -144,30 +121,12 @@ class ResNet18Dec(nn.Module):
         super().__init__()
         self.in_planes = 512
         self.nc = nc
-<<<<<<< HEAD:src/embed_time/model_VAE_resnet18_linear.py
-        self.shape_first_img = (512,spatial_dim_bottle[0],spatial_dim_bottle[1])
-        self.fc_layer_len = 512 * 2 * 2
-
-        self.linear_block = nn.Sequential(
-            nn.Linear(
-                z_dim,
-                self.fc_layer_len,
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                self.fc_layer_len,
-                self.fc_layer_len,
-            ), 
-        )
-        self.upscale = ResizeArbitrary(512,512,3,spatial_dim_bottle,mode='bicubic')
-=======
         self.z_dim = z_dim
 
         
         self.linear = nn.Linear(z_dim, 256)
         self.firstconv = nn.Conv2d(1, 512, kernel_size=1)
 
->>>>>>> abd359c (linear model AC):src/embed_time/model_VAE_resnet18_linear_ac.py
         self.layer4 = self._make_layer(BasicBlockDec, 256, num_Blocks[3], stride=2)
         self.layer3 = self._make_layer(BasicBlockDec, 128, num_Blocks[2], stride=2)
         self.layer2 = self._make_layer(BasicBlockDec, 64, num_Blocks[1], stride=2)
@@ -183,15 +142,9 @@ class ResNet18Dec(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, z):
-<<<<<<< HEAD:src/embed_time/model_VAE_resnet18_linear.py
-        x = self.linear_block(z)
-        x = x.view(-1, 512, 2, 2)
-        x = self.upscale(x)
-=======
         x = torch.relu(self.linear(z))
         x= x.view(-1, 1, 16,16)
         x = self.firstconv(x)
->>>>>>> abd359c (linear model AC):src/embed_time/model_VAE_resnet18_linear_ac.py
         x = self.layer4(x)
         x = self.layer3(x)
         x = self.layer2(x)
