@@ -5,6 +5,9 @@ import gunpowder as gp
 from funlib.persistence import Array
 from embed_time.resnet import ResNet18
 import torch
+import torch.nn as nn
+import torch.optim as optim
+
 import numpy as np
 from tqdm import tqdm
 
@@ -14,7 +17,6 @@ mask = gp.ArrayKey('MASK') # this is the mask
 label = gp.ArrayKey('LABEL') # this is the label
 
 datapath = Path("/mnt/efs/dlmbl/G-et/data/mousepanc") # path to the data
-sources = []
 
 class AddLabel(gp.BatchFilter):
 
@@ -37,36 +39,44 @@ class AddLabel(gp.BatchFilter):
         return batch
 
 
-def getlabel(test_zarr):
-    if '25868' in test_zarr.name:
-        if '25868$1.' in test_zarr.name:
+def getlabel(inzarr):
+    if '25868' in inzarr.name:
+        if '25868$1.' in inzarr.name:
             return 0
-        elif '25868$2.' in test_zarr.name:
+        elif '25868$2.' in inzarr.name:
             return 1
         else: 
             return 2
 
 
 
-for test_zarr in (datapath / "zarrtransposed").iterdir():
 
-    if not "25868" in test_zarr.name: # subset to only 25868 for now 
-        print("skipping", test_zarr.name)
-        continue
+trainsources = []
 
-    test_image = Array(zarr.open(datapath / "zarrtransposed"/ test_zarr.name), axis_names=["color^", "x", "y"])
-    test_mask = Array(zarr.open(datapath / "masks" / test_zarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
+i = 0
+
+train = [
+    item for item in (datapath / 'zarrtransposed').iterdir() if ("25868" in item.name) and (int(item.name[8]) % 2 == 0)  # A list of image names
+]
+
+
+for inzarr in train:
+    i += 1
+    train_image = Array(zarr.open(datapath / "zarrtransposed"/ inzarr.name), axis_names=["color^", "x", "y"])
+    train_mask = Array(zarr.open(datapath / "masks" / inzarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
+    gtlabel = getlabel(inzarr)
     
-    gtlabel = getlabel(test_zarr) #np.random.randint(0, 3) #generate random labels 
-    
-    image_source = gp.ArraySource(raw, test_image, interpolatable=True) # put image into gunpowder pipeline
-    mask_source = gp.ArraySource(mask, test_mask, interpolatable=False) # put mask into gunpowder pipeline
+    image_source = gp.ArraySource(raw, train_image, interpolatable=True) # put image into gunpowder pipeline
+    mask_source = gp.ArraySource(mask, train_mask, interpolatable=False) # put mask into gunpowder pipeline
 
-    source = (image_source, mask_source) + gp.MergeProvider() # put both into pipeline
-    source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
-    source += AddLabel(label, gtlabel) # "for this testzar my label is x"
-    sources.append(source)
-    break
+    trainsource = (image_source, mask_source) + gp.MergeProvider() # put both into pipeline
+    trainsource += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
+    trainsource += AddLabel(label, gtlabel) # "for this testzar my label is x"
+
+    trainsources.append(trainsource)
+    if i > 3:
+        break
+
     
 
 def gunpowderthings(sources, batch_size = 16): 
@@ -88,9 +98,8 @@ def writerequest(patch_size = 64):
     return request
 
 
-source = gunpowderthings(sources)
-request = writerequest()
-# write request
+trainsource = gunpowderthings(trainsources)
+trainrequest = writerequest()
 
 out_channels = 3 # dimensions of the latent space
 input_channels = 3
@@ -98,21 +107,21 @@ n_iter = 100
 
 resnet = ResNet18(nc = input_channels, oc = out_channels)
 
-loss_function = torch.nn.CrossEntropyLoss(reduction="sum")
-optimizer = torch.optim.Adam(resnet.parameters(), lr=0.001)
+loss_function = nn.CrossEntropyLoss(reduction="sum")
+optimizer = optim.Adam(resnet.parameters(), lr=0.001)
 device = torch.device("cuda")
 
 
 losses = []
 total_correct = 0
 total_wrong = 0
-
+allpred = []
 resnet.train()
 resnet = resnet.to(device)
 
-with gp.build(source):
+with gp.build(trainsource):
     for n in tqdm(range(n_iter)): # number of iterations
-        batch = source.request_batch(request)
+        batch = trainsource.request_batch(trainrequest)
         
         x_in = batch.arrays[raw].data 
 
@@ -125,27 +134,35 @@ with gp.build(source):
         y_pred = resnet(x_in_t) # data goes to the foreward function
 
         y = torch.tensor(batch.arrays[label].data).to(device)#.unsqueeze(1).to(device)
-        # print(y)
-        # print(x)
+
         loss = loss_function(y_pred, y)
         losses.append(loss.item())
 
-        total_correct += (y_pred.argmax(dim=1) == y).sum().item()
-        total_wrong += (y_pred.argmax(dim=1) != y).sum().item()
+        # total_correct += (y_pred.argmax(dim=1) == y).sum().item()
+        # total_wrong += (y_pred.argmax(dim=1) != y).sum().item()
         loss.backward()
         optimizer.step()
-
-        # add a loss-function
-
-
 
 
 
 fig, ax = plt.subplots(1)
 ax.plot(losses)
 
-
+prediction =  y_pred.argmax(dim=1).cpu().numpy()
+real = y.cpu().numpy()
 # confusion matrix
+
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+# Compute the confusion matrix
+cm = confusion_matrix(real, prediction)
+
+# Plot the confusion matrix
+plt.figure(figsize=(10, 7))
+sns.heatmap(cm, annot=True, fmt='d')
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.show()
 
 
 # treat this as dataloader. Same pipeline for sick and treated data 

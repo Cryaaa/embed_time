@@ -1,16 +1,10 @@
 import zarr
-from torch.utils.data import Dataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
 from pathlib import Path
 import gunpowder as gp
 from funlib.persistence import Array
-import dask #like np but on big data
-#from embed_time.model import ResNet2D
 from embed_time.vae import VAEResNet18
 import torch
-import re
 import numpy as np
 from tqdm import tqdm
 
@@ -105,6 +99,7 @@ vae = VAEResNet18(nc = input_channels, z_dim = z_dim)
 #loss_function: torch.nn.Module = torch.nn.MSELoss() #TODO: try L1 loss instead
 # use L1 loss
 loss_function: torch.nn.Module = torch.nn.L1Loss()
+# add perceptual loss (structural similarity loss)
 
 kl_divergence = torch.nn.KLDivLoss()
 optimizer = torch.optim.Adam(vae.parameters(), lr=0.001)
