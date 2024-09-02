@@ -16,7 +16,7 @@ class ResizeConv2d(nn.Module):
         return x
 
 class ResizeArbitrary(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, out_size, mode='nearest'):
+    def __init__(self, in_channels, out_channels, kernel_size, out_size, mode='bicubic'):
         super().__init__()
         self.out_size = out_size
         self.mode = mode
@@ -149,7 +149,7 @@ class ResNet18Dec(nn.Module):
                 self.fc_layer_len,
             ), 
         )
-        self.upscale = ResizeArbitrary(512,512,3,spatial_dim_bottle)
+        self.upscale = ResizeArbitrary(512,512,3,spatial_dim_bottle,mode="bicubic")
         self.layer4 = self._make_layer(BasicBlockDec, 256, num_Blocks[3], stride=2)
         self.layer3 = self._make_layer(BasicBlockDec, 128, num_Blocks[2], stride=2)
         self.layer2 = self._make_layer(BasicBlockDec, 64, num_Blocks[1], stride=2)
@@ -167,9 +167,9 @@ class ResNet18Dec(nn.Module):
     def forward(self, z):
         x = self.linear_block(z)
         x = x.view(-1, 512, 2, 2)
-        print(x.shape)
+        #print(x.shape)
         x = self.upscale(x)
-        print("after upscale", x.shape)
+        #print("after upscale", x.shape)
         x = self.layer4(x)
         x = self.layer3(x)
         x = self.layer2(x)
@@ -184,7 +184,7 @@ class VAEResNet18LinBotNek(nn.Module):
         self.in_spatial_shape = input_spatial_dim
         self.spat_shape_bottle = self.compute_spatial_shape(4)
         self.spat_shape_bottle = (self.spat_shape_bottle[0],self.spat_shape_bottle[1])
-        print(self.spat_shape_bottle )
+        #print(self.spat_shape_bottle )
         self.encoder = ResNet18Enc(nc=nc, z_dim=z_dim)
         self.decoder = ResNet18Dec(nc=nc, z_dim=z_dim, spatial_dim_bottle=self.spat_shape_bottle)
         self.enc_linear = nn.Sequential(
