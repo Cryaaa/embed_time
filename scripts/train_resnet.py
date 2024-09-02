@@ -1,16 +1,10 @@
 import zarr
-from torch.utils.data import Dataset
-from torchvision import datasets
-from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
 from pathlib import Path
 import gunpowder as gp
 from funlib.persistence import Array
-import dask #like np but on big data
-#from embed_time.model import ResNet2D
 from embed_time.resnet import ResNet18
 import torch
-import re
 import numpy as np
 from tqdm import tqdm
 
@@ -43,9 +37,6 @@ class AddLabel(gp.BatchFilter):
         return batch
 
 
-
-labels = []
-
 def getlabel(test_zarr):
     if '25868' in test_zarr.name:
         if '25868$1.' in test_zarr.name:
@@ -57,7 +48,7 @@ def getlabel(test_zarr):
 
 
 
-for test_zarr in tqdm((datapath / "zarrtransposed").iterdir()):
+for test_zarr in (datapath / "zarrtransposed").iterdir():
 
     if not "25868" in test_zarr.name: # subset to only 25868 for now 
         print("skipping", test_zarr.name)
@@ -66,9 +57,7 @@ for test_zarr in tqdm((datapath / "zarrtransposed").iterdir()):
     test_image = Array(zarr.open(datapath / "zarrtransposed"/ test_zarr.name), axis_names=["color^", "x", "y"])
     test_mask = Array(zarr.open(datapath / "masks" / test_zarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
     
-    #print(test_zarr.name)
     gtlabel = getlabel(test_zarr) #np.random.randint(0, 3) #generate random labels 
-    #print(gtlabel)
     
     image_source = gp.ArraySource(raw, test_image, interpolatable=True) # put image into gunpowder pipeline
     mask_source = gp.ArraySource(mask, test_mask, interpolatable=False) # put mask into gunpowder pipeline
@@ -77,43 +66,50 @@ for test_zarr in tqdm((datapath / "zarrtransposed").iterdir()):
     source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
     source += AddLabel(label, gtlabel) # "for this testzar my label is x"
     sources.append(source)
+    break
     
 
-source = tuple(sources) + gp.RandomProvider()
+def gunpowderthings(sources, batch_size = 16): 
+    source = tuple(sources) + gp.RandomProvider()
+    # Augment image
+    source += gp.Normalize(raw) # normalize image: devides by max (255) # TODO: normalize using mean and std of data 
+    source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(10.0, 10.0), rotate=True, spatial_dims = 2) # augment image
+    #TODO: Add more augmentations
 
-# Augment image
-source += gp.Normalize(raw) # normalize image: devides by max (255)
-# TODO: normalize using mean and std of data 
+    source += gp.Stack(batch_size) # stack the batch
+    return source
 
-source += gp.DeformAugment(control_point_spacing=gp.Coordinate(100, 100), jitter_sigma=gp.Coordinate(10.0, 10.0), rotate=True, spatial_dims = 2) # augment image
-#TODO: Add more augmentations
-batch_size = 16
-source += gp.Stack(batch_size) # stack the batch
 
+def writerequest(patch_size = 64):
+    request = gp.BatchRequest()
+    request.add(raw, (patch_size, patch_size))
+    request.add(mask, (patch_size, patch_size))
+    request[label] = gp.ArraySpec(nonspatial=True)
+    return request
+
+
+source = gunpowderthings(sources)
+request = writerequest()
 # write request
-request = gp.BatchRequest()
-size = 64
-request.add(raw, (size, size))
-request.add(mask, (size, size))
-request[label] = gp.ArraySpec(nonspatial=True)
 
 out_channels = 3 # dimensions of the latent space
 input_channels = 3
 n_iter = 100
 
 resnet = ResNet18(nc = input_channels, oc = out_channels)
+
 loss_function = torch.nn.CrossEntropyLoss(reduction="sum")
-
 optimizer = torch.optim.Adam(resnet.parameters(), lr=0.001)
-
 device = torch.device("cuda")
+
+
+losses = []
+total_correct = 0
+total_wrong = 0
 
 resnet.train()
 resnet = resnet.to(device)
 
-losses = []
-
-total_correct = 0
 with gp.build(source):
     for n in tqdm(range(n_iter)): # number of iterations
         batch = source.request_batch(request)
@@ -135,6 +131,7 @@ with gp.build(source):
         losses.append(loss.item())
 
         total_correct += (y_pred.argmax(dim=1) == y).sum().item()
+        total_wrong += (y_pred.argmax(dim=1) != y).sum().item()
         loss.backward()
         optimizer.step()
 
