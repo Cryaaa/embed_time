@@ -5,7 +5,7 @@ from embed_time.dataset_static import ZarrCellDataset
 from embed_time.dataloader_static import collate_wrapper
 from embed_time.model import Encoder, Decoder, VAE
 from embed_time.model_VAE_resnet18 import VAEResNet18
-from embed_time.model_VAE_resnet18_linear import VAEResNet18_linear
+from embed_time.model_VAE_resnet18_linear_ac import VAEResNet18_linear
 
 import torch
 from torchvision.transforms import v2
@@ -19,6 +19,16 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import yaml
+
+# Parameters
+model_name = "test_linear_ac"
+run_name= "Linear_dataset_split_2"
+latent_space_dim = 64
+beta = 1e-5
+n_epochs = 10
+
+csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv' 
+# csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_804.csv'
 
 def read_config(yaml_path):
     with open(yaml_path, 'r') as file:
@@ -45,12 +55,11 @@ else:
     
 #%% Generate Dataset
 
+
+
 # Usage example:
-latent_space_dim = 64
 parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/logs/'
-model_name = "test_delete-Vae_lienar"
-run_name= "Test_run"
 train_ratio = 0.7
 val_ratio = 0.15
 num_workers = -1
@@ -82,7 +91,7 @@ if find_port:
 
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
-csv_file = '/mnt/efs/dlmbl/G-et/csv/example_split.csv' #split_804.csv
+
 split = 'train'
 channels = [0, 1, 2, 3]
 transform = "masks"
@@ -111,7 +120,7 @@ dataloader = DataLoader(
 
 #%% Create the model
 # Initiate VAE
-model = VAEResNet18(nc=4, z_dim=10).to(device)
+model = VAEResNet18_linear(nc=4, z_dim=latent_space_dim).to(device)
 
 #%% Define Optimizar
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
@@ -263,8 +272,10 @@ checkpoint_path = output_path + "checkpoints/static/" + folder_suffix + "/"
 os.makedirs(checkpoint_path, exist_ok=True)
 log_path = output_path + "logs/static/"+ folder_suffix + "/"
 os.makedirs(log_path, exist_ok=True)
-for epoch in range(1, 10):
-    train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger, beta=1e-5)
+# training
+for epoch in range(1, n_epochs):
+    train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger, beta=beta)
+    
     filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
     training_logDF = pd.DataFrame(training_log)
     training_logDF.to_csv(log_path + filename_suffix+"training_log.csv", index=False)
