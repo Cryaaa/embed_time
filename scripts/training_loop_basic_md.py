@@ -74,7 +74,7 @@ if find_port:
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Define variables for the dataset read in
-csv_file = '/mnt/efs/dlmbl/G-et/csv/split_804.csv'
+csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
 transform = "masks"
@@ -160,7 +160,7 @@ def train(
         
         recon_batch, mu, logvar = vae(data)
         MSE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = MSE + KLD * 1e-4  
+        loss = MSE + KLD * 1e-8
         
         loss.backward()
         train_loss += loss.item()
@@ -196,6 +196,12 @@ def train(
             step = epoch * len(loader) + batch_idx
             tb_logger.add_scalar(
                 tag="train_loss", scalar_value=loss.item(), global_step=step
+            )
+            tb_logger.add_scalar(
+                tag="train_MSE", scalar_value=MSE.item(), global_step=step
+            )
+            tb_logger.add_scalar(
+                tag="train_KLD", scalar_value=KLD.item(), global_step=step
             )
             # check if we log images in this iteration
             if step % log_image_interval == 0:

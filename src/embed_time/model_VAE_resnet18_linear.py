@@ -1,10 +1,7 @@
 import torch
 from torch import nn, optim
 import torch.nn.functional as F
-<<<<<<< HEAD
-=======
 import numpy as np
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
 
 class ResizeConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
@@ -12,18 +9,11 @@ class ResizeConv2d(nn.Module):
         self.scale_factor = scale_factor
         self.mode = mode
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=kernel_size//2)
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         x = self.conv(x)
         return x
 
-<<<<<<< HEAD
-=======
 class ResizeArbitrary(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, out_size, mode='nearest'):
         super().__init__()
@@ -36,7 +26,6 @@ class ResizeArbitrary(nn.Module):
         x = torch.relu(self.conv(x))
         return x
 
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
 class BasicBlockEnc(nn.Module):
 
     def __init__(self, in_planes, stride=1):
@@ -85,11 +74,6 @@ class BasicBlockDec(nn.Module):
                 ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride),
                 nn.BatchNorm2d(planes)
             )
-<<<<<<< HEAD
-    
-=======
-
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
     def forward(self, x):
         out = torch.relu(self.bn2(self.conv2(x)))
         out = self.bn1(self.conv1(out))
@@ -100,11 +84,7 @@ class BasicBlockDec(nn.Module):
 
 class ResNet18Enc(nn.Module):
 
-<<<<<<< HEAD
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
-=======
     def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3, linear_downsample_factor = 8):
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
         super().__init__()
         self.in_planes = 64
         self.z_dim = z_dim
@@ -114,10 +94,6 @@ class ResNet18Enc(nn.Module):
         self.layer2 = self._make_layer(BasicBlockEnc, 128, num_Blocks[1], stride=2)
         self.layer3 = self._make_layer(BasicBlockEnc, 256, num_Blocks[2], stride=2)
         self.layer4 = self._make_layer(BasicBlockEnc, 512, num_Blocks[3], stride=2)
-<<<<<<< HEAD
-        self.linear = nn.Linear(int(512*(128/2**len(num_Blocks))**2), 2 * z_dim, bias = True)
-
-=======
         self.avg_pool = nn.AdaptiveAvgPool2d(output_size=2)
         self.fc_layer_len = 512 * 2 * 2
         self.linear_block = nn.Sequential(
@@ -131,7 +107,6 @@ class ResNet18Enc(nn.Module):
                 z_dim * 2
             )
         )
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
     def _make_layer(self, BasicBlockEnc, planes, num_Blocks, stride):
         strides = [stride] + [1]*(num_Blocks-1)
         layers = []
@@ -146,28 +121,14 @@ class ResNet18Enc(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-<<<<<<< HEAD
-        x = torch.flatten(x, start_dim=1, end_dim=-1)
-        x = self.linear(x)
-=======
         x = self.avg_pool(x)
         x = x.view(-1,self.fc_layer_len)
         x = self.linear_block(x)
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
         mu, logvar = torch.chunk(x, 2, dim=1)
         return mu, logvar
 
 class ResNet18Dec(nn.Module):
 
-<<<<<<< HEAD
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
-        super().__init__()
-        self.in_planes = 512
-        self.nc = nc
-
-        self.linear = nn.Conv2d(z_dim, 512, kernel_size=1)
-
-=======
     def __init__(self, spatial_dim_bottle, num_Blocks=[2,2,2,2], z_dim=10, nc=3, linear_downsample_factor =8):
         super().__init__()
         self.in_planes = 512
@@ -187,7 +148,6 @@ class ResNet18Dec(nn.Module):
             ), 
         )
         self.upscale = ResizeArbitrary(512,512,3,spatial_dim_bottle,mode='bicubic')
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
         self.layer4 = self._make_layer(BasicBlockDec, 256, num_Blocks[3], stride=2)
         self.layer3 = self._make_layer(BasicBlockDec, 128, num_Blocks[2], stride=2)
         self.layer2 = self._make_layer(BasicBlockDec, 64, num_Blocks[1], stride=2)
@@ -203,37 +163,15 @@ class ResNet18Dec(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, z):
-<<<<<<< HEAD
-        x = self.linear(z)
-=======
         x = self.linear_block(z)
         x = x.view(-1, 512, 2, 2)
         x = self.upscale(x)
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
         x = self.layer4(x)
         x = self.layer3(x)
         x = self.layer2(x)
         x = self.layer1(x)
         x = torch.sigmoid(self.conv1(x))
         return x
-<<<<<<< HEAD
-    
-    
-class VAEResNet18_linear(nn.Module):
-    
-    def __init__(self, nc, z_dim):
-        super().__init__()
-        self.encoder = ResNet18Enc(nc=nc, z_dim=z_dim)
-        self.decoder = ResNet18Dec(nc=nc, z_dim=z_dim)
-
-    def forward(self, x):
-        mu, log_var = self.encoder(x)
-        z = self.reparameterize(mu, log_var)
-        x = self.decoder(z)
-        # return x, z
-        return x, mu, log_var
-    
-=======
 
 
 class VAEResNet18_Linear(nn.Module):
@@ -254,14 +192,11 @@ class VAEResNet18_Linear(nn.Module):
         x = self.decoder(z)
         return x, z, mean, logvar
 
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
     @staticmethod
     def reparameterize(mean, logvar):
         std = torch.exp(logvar / 2) # in log-space, squareroot is divide by two
         epsilon = torch.randn_like(std)
         return epsilon * std + mean
-<<<<<<< HEAD
-=======
 
     def compute_spatial_shape(self, level: int) -> tuple[int, int]:
         # TODO Add warning when shape is odd before maxpool
@@ -272,4 +207,3 @@ class VAEResNet18_Linear(nn.Module):
         if any([s%2 != 0 for s in spatial_shape]):
             raise ValueError("Can't Decode Because Input Dimension is Lost during Downsampling")
         return spatial_shape
->>>>>>> ced5698 (added training loops for md, modified static dataloader)
