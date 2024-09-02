@@ -111,7 +111,7 @@ dataloader = DataLoader(
 
 #%% Create the model
 # Initiate VAE
-model = VAEResNet18_linear(nc=4, z_dim=latent_space_dim).to(device)
+model = VAEResNet18(nc=4, z_dim=10).to(device)
 
 #%% Define Optimizar
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
