@@ -215,7 +215,7 @@ def launch_tensorboard(log_dir):
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    model_name = "Resnet18_LinearVAE_01_bicubic"
+    model_name = "Resnet18_LinearVAE_02_bicubic"
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
 
@@ -241,6 +241,7 @@ if __name__ == "__main__":
         v2.GaussianBlur(kernel_size=3, sigma=(0.1,1.0)),
     ])
 
+
     dataset_w_t = LiveTLSDataset(
         metadata,
         folder_imgs,
@@ -256,7 +257,7 @@ if __name__ == "__main__":
     print((y,x))
 
     NUM_EPOCHS = 100
-    z_dim = 50
+    z_dim = 100
     batch_size = 5
     beta_vae = 1e-4
     model_dict = {
@@ -268,8 +269,8 @@ if __name__ == "__main__":
     }
     
     model = VAEResNet18LinBotNek(nc=in_channels,z_dim=z_dim,input_spatial_dim=(y,x))
-    dataloader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True)
-    dataloader_val = DataLoader(validation_set, batch_size=batch_size, shuffle=False, pin_memory=True)
+    dataloader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True,num_workers=batch_size)
+    dataloader_val = DataLoader(validation_set, batch_size=batch_size, shuffle=False, pin_memory=True,num_workers=batch_size)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
