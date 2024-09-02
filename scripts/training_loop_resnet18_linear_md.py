@@ -93,6 +93,7 @@ dataloader = DataLoader(
     dataset, 
     batch_size=16, 
     shuffle=True, 
+    num_workers=8,
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
 

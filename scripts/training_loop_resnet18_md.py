@@ -71,6 +71,7 @@ if find_port:
 logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Define variables for the dataset read in
+parent_dir = '/mnt/efs/dlmbl/S-md/'
 csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
@@ -92,6 +93,7 @@ dataloader = DataLoader(
     dataset, 
     batch_size=16, 
     shuffle=True, 
+    num_workers=8,    
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
 
