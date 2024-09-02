@@ -57,7 +57,7 @@ def getlabel(test_zarr):
 
 
 
-for test_zarr in (datapath / "zarrtransposed").iterdir():
+for test_zarr in tqdm((datapath / "zarrtransposed").iterdir()):
 
     if not "25868" in test_zarr.name: # subset to only 25868 for now 
         print("skipping", test_zarr.name)
@@ -77,7 +77,7 @@ for test_zarr in (datapath / "zarrtransposed").iterdir():
     source += gp.RandomLocation(mask = mask, min_masked = 0.9) # random location in image. at least 90% of the patch is foreground
     source += AddLabel(label, gtlabel) # "for this testzar my label is x"
     sources.append(source)
-    break
+    
 
 source = tuple(sources) + gp.RandomProvider()
 
@@ -97,29 +97,28 @@ request.add(raw, (size, size))
 request.add(mask, (size, size))
 request[label] = gp.ArraySpec(nonspatial=True)
 
-z_dim = 128 # dimensions of the latent space
+out_channels = 3 # dimensions of the latent space
 input_channels = 3
 n_iter = 100
 
-resnet = ResNet18(nc = input_channels)
-loss_function: torch.nn.Module = torch.nn.MSELoss()
+resnet = ResNet18(nc = input_channels, oc = out_channels)
+loss_function = torch.nn.CrossEntropyLoss(reduction="sum")
 
-kl_divergence = torch.nn.KLDivLoss()
-optimizer = torch.optim.Adam(vae.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(resnet.parameters(), lr=0.001)
 
 device = torch.device("cuda")
 
-vae.train()
-vae = vae.to(device)
+resnet.train()
+resnet = resnet.to(device)
 
 losses = []
 
-
+total_correct = 0
 with gp.build(source):
     for n in tqdm(range(n_iter)): # number of iterations
         batch = source.request_batch(request)
         
-        x_in = batch.arrays[raw].data
+        x_in = batch.arrays[raw].data 
 
         x_in_t = torch.tensor(x_in, dtype=torch.float32)
 
@@ -127,16 +126,15 @@ with gp.build(source):
         optimizer.zero_grad()
 
 
-        x, z = resnet(x_in_t) # data goes to the foreward function
-        rec_loss = loss_function(x, x_in_t)
+        y_pred = resnet(x_in_t) # data goes to the foreward function
 
-        kl_loss = kld_loss(mean, logvar)
-
-
-        loss = beta * kl_loss + rec_loss
+        y = torch.tensor(batch.arrays[label].data).to(device)#.unsqueeze(1).to(device)
+        # print(y)
+        # print(x)
+        loss = loss_function(y_pred, y)
         losses.append(loss.item())
-        reclosses.append(rec_loss.item())
-        kllosses.append(kl_loss.item())
+
+        total_correct += (y_pred.argmax(dim=1) == y).sum().item()
         loss.backward()
         optimizer.step()
 
@@ -144,28 +142,14 @@ with gp.build(source):
 
 
 
-def plotoutput(x_in, x_out):
-    np.random.seed(0)
-    shuffled = np.arange(len(x_in))
-
-    np.random.shuffle(shuffled)
-    fig, ax = plt.subplots(2,4)
-
-    for i in range(4):
-        ax[0, i].imshow(x_in_t[shuffled[i]].cpu().detach().numpy().transpose(1,2,0))
-        ax[1, i].imshow(x_out[shuffled[i]].cpu().detach().numpy().transpose(1,2,0))
-
-    plt.show()
 
 
-plotoutput(x_in_t, x)
+fig, ax = plt.subplots(1)
+ax.plot(losses)
 
 
-fig, ax = plt.subplots(1,2)
-ax[0].plot(reclosses)
-ax[0].set_title("Reconstruction loss")
-ax[1].plot(kllosses)
-ax[1].set_title("KL loss")
+# confusion matrix
+
 
 # treat this as dataloader. Same pipeline for sick and treated data 
 # put x through the model 
