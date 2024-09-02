@@ -8,8 +8,8 @@ from pathlib import Path
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 table_location = Path("/mnt/efs/dlmbl/G-et/tabular_data")
-file = "LinearVAE_01_bicubic_latents_w_annot.csv"
-plot_outs = table_location / "LinearVAE_01_bicubic_latents"
+file = "UNet_VAE_01_old_normalisation.csv"
+plot_outs = table_location / "UNet_VAE_01_old_normalisation"
 plot_outs.mkdir(exist_ok=True)
 dataframe = pd.read_csv(table_location / file)
 annotation_columns = ["Label","Time","Axes","Run","Plate","ID"]
@@ -101,7 +101,7 @@ cbar.set_label('Axes')
 ax.view_init(elev=60, azim=100)
 plt.savefig(plot_outs / "3D_pca_axes_annotated.dpf",format="pdf")
 # %%
-umap_transformer = umap.UMAP(n_neighbors = 5)
+umap_transformer = umap.UMAP(n_neighbors = 30)
 umap_out = umap_transformer.fit_transform(scaled_input)
 
 umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
