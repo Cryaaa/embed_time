@@ -45,6 +45,6 @@ class LiveTLSDataset(Dataset):
             label = self.target_transform(label)
 
         if self.return_metadata:
-            metadata = self.annotations[self.metadata_columns].iloc[idx].to_numpy()
+            metadata = tuple(self.annotations[self.metadata_columns].iloc[idx].to_list())
             return image, label, metadata
         return image, label

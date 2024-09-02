@@ -20,6 +20,13 @@ import subprocess
 from datetime import datetime
 from torch.utils.tensorboard import SummaryWriter
 
+MODEL_NAME = "VAE_Resnet_Linear_XXXXXRUN"
+NUM_EPOCHS = 100
+z_dim = 100
+batch_size = 5
+beta_vae = 1e-4
+
+
 # return reconstruction error + KL divergence losses
 def loss_function(recon_x, x, mu, log_var, beta_vae):
     MSE = F.mse_loss(recon_x,x,reduction='mean')
@@ -215,7 +222,7 @@ def launch_tensorboard(log_dir):
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    model_name = "Resnet18_LinearVAE_02_bicubic"
+    model_name = MODEL_NAME
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
 
@@ -255,18 +262,6 @@ if __name__ == "__main__":
     in_channels, y, x = sample.shape
     print(in_channels)
     print((y,x))
-
-    NUM_EPOCHS = 100
-    z_dim = 100
-    batch_size = 5
-    beta_vae = 1e-4
-    model_dict = {
-        'num_epochs': NUM_EPOCHS,
-        'in_channels': in_channels,
-        'z_dim': z_dim,
-        'batch_size':batch_size,
-        'beta_vae':beta_vae,
-    }
     
     model = VAEResNet18LinBotNek(nc=in_channels,z_dim=z_dim,input_spatial_dim=(y,x))
     dataloader_train = DataLoader(train_set, batch_size=batch_size, shuffle=True, pin_memory=True,num_workers=batch_size)
@@ -275,7 +270,13 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    
+    model_dict = {
+        'num_epochs': NUM_EPOCHS,
+        'in_channels': in_channels,
+        'z_dim': z_dim,
+        'batch_size':batch_size,
+        'beta_vae':beta_vae,
+    }
     print(device)
     train_losses = []
     val_losses = []
