@@ -83,6 +83,7 @@ def sample_latent_space_per_timepoint(
                     image, label, metdat = first
                     
                 else: 
+                    # Might be different depending on dataloader
                     image, label = first
                 _, z, mean, var = model(image.to(device))
                 for _ in range(n_samples_per_tp):
