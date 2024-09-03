@@ -225,7 +225,6 @@ if __name__ == "__main__":
     model_name = MODEL_NAME
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
-
     checkpoint_dir.mkdir(exist_ok=True)
     data_location = "/mnt/efs/dlmbl/G-et/data/live-TLS"
     folder_imgs = data_location +"/"+'Control_Dataset_4TP_Normalized_Across_Dataset'
