@@ -35,7 +35,7 @@ def evaluate_model(model, dataloader, device):
             recon_batch, mu, logvar = model(data)
             mse = F.mse_loss(recon_batch, data, reduction='sum')
             kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-            loss = mse + kld * 1e-5
+            loss = mse + kld * 1e-7
             
             total_loss += loss.item()
             total_mse += mse.item()
