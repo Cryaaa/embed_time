@@ -17,9 +17,12 @@ patience = 10
 seed = 1
 crop_size = 280
 batch_size = 32
+train_split = 0.9
 checkpoint_dir = "checkpoints/"
 latent_dims = 2
+encoder_dims = [8, 16, 32, 64]
 n_time = 5
+n_channels = 1
 
 torch.manual_seed(seed)
 device = torch.device(f"cuda:{str(GPU)}")
@@ -189,9 +192,8 @@ def train(
 
 if __name__ == "__main__":
     transform = torchvision.transforms.RandomCrop(crop_size)
-    train_split = 0.9
-    train_set = data[: int(len(data) * 0.9)]
-    val_set = data[int(len(data) * 0.9) :]
+    train_set = data[: int(len(data) * train_split)]
+    val_set = data[int(len(data) * train_split) :]
     train_set = Dataset(train_set, transform=transform)
     val_set = Dataset(val_set, transform=transform)
 
@@ -200,16 +202,14 @@ if __name__ == "__main__":
         batch_size=batch_size,
         shuffle=True,
         pin_memory=True,
-        drop_last=True,
     )
     val_loader = torch.utils.data.DataLoader(
         val_set,
         batch_size=batch_size,
         shuffle=False,
         pin_memory=True,
-        drop_last=True,
     )
-    encoder = ConvNeXt(in_chans=1, num_classes=latent_dims, dims=[8, 16, 32, 64])
+    encoder = ConvNeXt(in_chans=n_channels, num_classes=latent_dims, dims=encoder_dims)
     ar_model = ShiftedConv(in_channels=latent_dims, out_channels=latent_dims, kernel_size=n_time)
     query_weights = torch.nn.ModuleList()
     for _ in range(n_time - 1):
