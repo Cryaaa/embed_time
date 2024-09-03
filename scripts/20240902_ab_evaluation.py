@@ -9,19 +9,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from matplotlib.colors import ListedColormap
-import yaml
-
-from embed_time.dataset_static import ZarrCellDataset
-from embed_time.dataloader_static import collate_wrapper
+import umap
 from embed_time.model_VAE_resnet18 import VAEResNet18
+from datasets.neuromast import NeuromastDatasetTest, NeuromastDatasetTrain_T10
 
-# Utility Functions
-def read_config(yaml_path):
-    with open(yaml_path, 'r') as file:
-        config = yaml.safe_load(file)
-    mean = [float(i) for i in config['Dataset mean'][0].split()]
-    std = [float(i) for i in config['Dataset std'][0].split()]
-    return np.array(mean), np.array(std)
+
 
 def load_checkpoint(checkpoint_path, model, device):
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -36,9 +28,9 @@ def evaluate_model(model, dataloader, device):
     all_metadata = []
     
     with torch.no_grad():
-        for batch in dataloader:
-            data = batch['cell_image'].to(device)
-            metadata = [batch['gene'], batch['barcode'], batch['stage']]
+        for idx, (batch, label) in enumerate(dataloader):
+            data = batch.to(device)
+            metadata = label
             
             recon_batch, mu, logvar = model(data)
             mse = F.mse_loss(recon_batch, data, reduction='sum')
@@ -51,7 +43,7 @@ def evaluate_model(model, dataloader, device):
             
             mu_flattened = mu.view(mu.size(0), -1)
             all_latent_vectors.append(mu_flattened.cpu())
-            all_metadata.extend(zip(*metadata))
+            all_metadata.extend(metadata.tolist())
     
     avg_loss = total_loss / len(dataloader.dataset)
     avg_mse = total_mse / len(dataloader.dataset)
@@ -59,28 +51,28 @@ def evaluate_model(model, dataloader, device):
     latent_vectors = torch.cat(all_latent_vectors, dim=0)
     
     return avg_loss, avg_mse, avg_kld, latent_vectors, all_metadata
-
+#%%
 # Visualization Functions
 def plot_reconstructions(model, dataloader, device):
     model.eval()
     with torch.no_grad():
-        batch = next(iter(dataloader))
-        data = batch['cell_image'].to(device)
+        batch, label = next(iter(dataloader))
+        data = batch.to(device)
         recon_batch, _, _ = model(data)
         
         image_idx = np.random.randint(data.shape[0])
         original = data[image_idx].cpu().numpy()
         reconstruction = recon_batch[image_idx].cpu().numpy()
         
-        fig, axes = plt.subplots(2, 4, figsize=(20, 10))
+        fig, axes = plt.subplots(1,2, figsize=(20, 10))
         
-        for j in range(4):
-            axes[0, j].imshow(original[j], cmap='gray')
-            axes[0, j].set_title(f'Original Channel {j+1}')
-            axes[0, j].axis('off')
-            axes[1, j].imshow(reconstruction[j], cmap='gray')
-            axes[1, j].set_title(f'Reconstructed Channel {j+1}')
-            axes[1, j].axis('off')
+        
+        axes[0].imshow(original[0], cmap='gray')
+        axes[0].set_title(f'Input_image {label[image_idx]}', fontsize=30)
+        axes[0].axis('off')
+        axes[1].imshow(reconstruction[0], cmap='gray')
+        axes[1].set_title(f'Reconstructed_image', fontsize=30)
+        axes[1].axis('off')
         
         plt.tight_layout()
         plt.show()
@@ -89,19 +81,63 @@ def plot_reconstructions(model, dataloader, device):
         print(f"Reconstruction shape: {reconstruction.shape}")
         print(f"Original image min/max values: {original.min():.4f}/{original.max():.4f}")
         print(f"Reconstructed image min/max values: {reconstruction.min():.4f}/{reconstruction.max():.4f}")
-
+#%%
 def create_pca_plots(train_latents, val_latents, train_df, val_df):
+    # Step 1: Perform PCA
     pca = PCA(n_components=2)
     train_latents_pca = pca.fit_transform(train_latents)
     val_latents_pca = pca.transform(val_latents)
-
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
     
+    # Step 2: Prepare the plot
+    fig, axes = plt.subplots(1,2, figsize=(25, 10))
+    
+    # Helper function to create a color map
     def create_color_map(n):
-        return ListedColormap(plt.cm.tab20(np.linspace(0, 1, n)))
+        return ListedColormap(plt.cm.viridis(np.linspace(0, 1, n)))
+    # Assuming you have 3 unique labels
+    
+    # Step 3: Plot PCA for the training set
+    ax = axes[0]
+    scatter = ax.scatter(train_latents_pca[:, 0], train_latents_pca[:, 1], c=train_df['Labels'], cmap=create_color_map(len(np.unique(train_df['Labels']))),s=100)
+    ax.set_title('PCA of Training Latents', fontsize=40)
+    ax.set_xlabel('PCA Component 1', fontsize=40)
+    ax.set_ylabel('PCA Component 2', fontsize=40)
+    # Create a color bar with specific ticks and labels
+    num_labels = len(np.unique(train_df['Labels']))
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
+
+    # Step 4: Plot PCA for the validation set
+    ax = axes[1]
+    scatter = ax.scatter(val_latents_pca[:, 0], val_latents_pca[:, 1], c=val_df['Labels'], cmap=create_color_map(len(np.unique(val_df['Labels']))),s=100)
+    ax.set_title('PCA of Validation Latents', fontsize=40)
+    ax.set_xlabel('PCA Component 1', fontsize=40)
+    ax.set_ylabel('PCA Component 2', fontsize=40)
+    num_labels = len(np.unique(val_df['Labels']))
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
+
+
+    # Optional: You can add more plots or subplots as required
+
+    # Debugging: Print shapes and check if the data is non-empty
+    print(f"Train Latents PCA shape: {train_latents_pca.shape}")
+    print(f"Val Latents PCA shape: {val_latents_pca.shape}")
+    print(f"Unique labels in training set: {np.unique(train_df['Labels'])}")
+    print(f"Unique labels in validation set: {np.unique(val_df['Labels'])}")
+    
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+    
+    # Step 5: Show the plot
+    plt.show()
 #%%
 def create_umap_plots(train_latents, val_latents, train_df, val_df):
-    import umap
+    
 
     # Initialize UMAP
     umap_reducer = umap.UMAP(n_neighbors=15, min_dist=0.1, n_components=2, random_state=42)
@@ -111,29 +147,38 @@ def create_umap_plots(train_latents, val_latents, train_df, val_df):
     # Transform the validation data using the same UMAP model
     val_latents_umap = umap_reducer.transform(val_latents)
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    fig, axes = plt.subplots(1,2, figsize=(25, 10))
     
     def create_color_map(n):
-        return ListedColormap(plt.cm.tab20(np.linspace(0, 1, n)))
+        return ListedColormap(plt.cm.viridis(np.linspace(0, 1, n)))
 
-    attributes = ['stage', 'barcode', 'gene']
-    for i, attr in enumerate(attributes):
-        for j, (latents_umap, df) in enumerate([(train_latents_umap, train_df), (val_latents_umap, val_df)]):
-            unique_values = df[attr].unique()
-            color_map = create_color_map(len(unique_values))
-            color_dict = {value: i for i, value in enumerate(unique_values)}
-            colors = [color_dict[value] for value in df[attr]]
-            
-            scatter = axes[j, i].scatter(latents_umap[:, 0], latents_umap[:, 1], c=colors, s=5, cmap=color_map)
-            axes[j, i].set_title(f"{'Training' if j == 0 else 'Validation'} Latent Space (UMAP) - Colored by {attr}")
-            axes[j, i].set_xlabel("UMAP1")
-            axes[j, i].set_ylabel("UMAP2")
-            
-            cbar = plt.colorbar(scatter, ax=axes[j, i], ticks=range(len(unique_values)))
-            cbar.set_ticklabels(unique_values)
+    
+    # Step 5: Plot UMAP for the training set
+    ax = axes[0]
+    scatter = ax.scatter(train_latents_umap[:, 0], train_latents_umap[:, 1], c=train_df['Labels'], cmap=create_color_map(len(np.unique(train_df['Labels']))),s=100)
+    ax.set_title('UMAP of Training Latents', fontsize=40)
+    ax.set_xlabel('UMAP Component 1', fontsize=40)
+    ax.set_ylabel('UMAP Component 2', fontsize=40)
+    # Create a color bar with specific ticks and labels
+    num_labels = len(np.unique(train_df['Labels']))
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
 
-    plt.tight_layout()
-    plt.show()
+    # Step 6: Plot UMAP for the validation set
+    ax = axes[1]
+    scatter = ax.scatter(val_latents_umap[:, 0], val_latents_umap[:, 1], c=val_df['Labels'], cmap=create_color_map(len(np.unique(val_df['Labels']))),s=100)
+    ax.set_title('UMAP of Validation Latents', fontsize=40)
+    ax.set_xlabel('UMAP Component 1', fontsize=40)
+    ax.set_ylabel('UMAP Component 2', fontsize=40)
+    num_labels = len(np.unique(val_df['Labels']))
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
+
+
 #%%
 # Main Execution
 if __name__ == "__main__":
@@ -141,33 +186,22 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # Model initialization and loading
-    model = VAEResNet18(nc = 4, z_dim = 64 ).to(device)
-    checkpoint_dir = "/mnt/efs/dlmbl/G-et/checkpoints/static/Akila/20240902z_dim_64_lr-1e-3_beta-1e-4/"
+    model = VAEResNet18(nc = 1, z_dim = 22 ).to(device)
+    checkpoint_dir = "/mnt/efs/dlmbl/G-et/checkpoints/static/Akila/20240903z_dim-22_lr-0.0001_beta-1e-07/_epoch_6/"
     
     checkpoint_path = os.path.join(checkpoint_dir, "checkpoint.pth")
     model, epoch = load_checkpoint(checkpoint_path, model, device)
     model = model.to(device)
-    print(model)
 
-    # Dataset parameters
-    parent_dir = '/mnt/efs/dlmbl/S-md/'
-    csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
-    channels = [0, 1, 2, 3]
-    transform = "masks"
-    crop_size = 96
-    normalizations = v2.Compose([v2.CenterCrop(crop_size)])
-    yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
-    dataset_mean, dataset_std = read_config(yaml_file_path)
-
-    # Dataset and DataLoader creation
-    metadata_keys = ['gene', 'barcode', 'stage']
-    images_keys = ['cell_image']
     
-    dataset_train = ZarrCellDataset(parent_dir, csv_file, 'train', channels, transform, normalizations, None, dataset_mean, dataset_std)
-    dataset_val = ZarrCellDataset(parent_dir, csv_file, 'val', channels, transform, normalizations, None, dataset_mean, dataset_std)
 
-    dataloader_train = DataLoader(dataset_train, batch_size=16, shuffle=True, num_workers=8, collate_fn=collate_wrapper(metadata_keys, images_keys))
-    dataloader_val = DataLoader(dataset_val, batch_size=16, shuffle=True, num_workers=8, collate_fn=collate_wrapper(metadata_keys, images_keys))
+    
+    dataset_train = NeuromastDatasetTrain_T10()
+    dataset_val = NeuromastDatasetTest()
+    
+
+    dataloader_train = DataLoader(dataset_train, batch_size=2, shuffle=True, num_workers=8)
+    dataloader_val = DataLoader(dataset_val, batch_size=2, shuffle=True, num_workers=8)
 
     # Model evaluation
     print("Evaluating on training data...")
@@ -179,21 +213,19 @@ if __name__ == "__main__":
     print(f"Validation - Loss: {val_loss:.4f}, MSE: {val_mse:.4f}, KLD: {val_kld:.4f}")
 
     # Create DataFrames
-    train_df = pd.DataFrame(train_metadata, columns=['gene', 'barcode', 'stage'])
+    train_df = pd.DataFrame(train_metadata, columns=['Labels'])
     train_df = pd.concat([train_df, pd.DataFrame(train_latents.numpy())], axis=1)
 
-    val_df = pd.DataFrame(val_metadata, columns=['gene', 'barcode', 'stage'])
+    val_df = pd.DataFrame(val_metadata, columns=['Labels'])
     val_df = pd.concat([val_df, pd.DataFrame(val_latents.numpy())], axis=1)
-
+#%%
     # Visualizations
     plot_reconstructions(model, dataloader_val, device)
     plot_reconstructions(model, dataloader_train, device)
-    create_pca_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
+   
 
 #%%
-    plot_reconstructions(model, dataloader_val, device)
-    plot_reconstructions(model, dataloader_train, device)
-    create_pca_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
+create_pca_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
 #%%
 create_umap_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
 # %%
