@@ -187,7 +187,7 @@ def train(
         print(f"Keyboard interrupt")
     print(f"{epoch} epochs. Version {checkpoint_dir.split("_")[-1]}")
 
-if __name__ == "main":
+if __name__ == "__main__":
     transform = torchvision.transforms.RandomCrop(crop_size)
     train_split = 0.9
     train_set = data[: int(len(data) * 0.9)]
