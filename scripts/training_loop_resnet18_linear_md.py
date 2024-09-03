@@ -43,7 +43,7 @@ else:
     device = torch.device("cpu")
     
 # Basic values for logging 
-model_name = "static_resnet_linear_vae_md"
+model_name = "static_resnet_linear_vae_md_nomask"
 find_port = True
 
 # Function to find an available port
@@ -72,10 +72,10 @@ logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Define variables for the dataset read in
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
+csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_17_sampled.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
-transform = "masks"
+transform = None
 crop_size = 96
 normalizations = v2.Compose([v2.CenterCrop(crop_size)])
 yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
@@ -98,8 +98,7 @@ dataloader = DataLoader(
 )
 
 # Create the model
-vae = VAEResNet18_Linear(nc = 4, z_dim = 72, input_spatial_dim = [96,96])
-
+vae = VAEResNet18_Linear(nc = 4, z_dim = 32, input_spatial_dim = [96,96])
 
 torchview.draw_graph(
     vae,
@@ -114,7 +113,7 @@ torchview.draw_graph(
 vae = vae.to(device)
 
 # Define the optimizer
-optimizer = torch.optim.Adam(vae.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(vae.parameters(), lr=1e-3)
 
 def loss_function(recon_x, x, mu, logvar):
     MSE = F.mse_loss(recon_x, x, reduction='mean')
@@ -148,7 +147,7 @@ def train(
         
         recon_batch, z, mu, logvar = vae(data)
         MSE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = MSE + KLD * 1e-5
+        loss = MSE + KLD * 1e-4
         
         loss.backward()
         train_loss += loss.item()
@@ -244,7 +243,7 @@ def train(
 
 # Training loop
 output_dir = '/mnt/efs/dlmbl/G-et/'
-run_name= "resnet_linear_test"
+run_name= "resnet_linear_17_32dim_nomask"
 
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
 log_path = output_dir + "logs/static/Matteo/"+ folder_suffix + "/"

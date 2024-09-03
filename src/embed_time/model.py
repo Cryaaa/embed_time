@@ -115,7 +115,7 @@ class VAE(nn.Module):
                 print("Error in checking shapes")
                 raise (e)
 
-    def sampling(self, mu, log_var):
+    def reparametrize(self, mu, log_var):
         std = torch.exp(0.5 * log_var)
         eps = torch.randn_like(std)
         z = eps.mul(std).add_(mu)
@@ -123,5 +123,5 @@ class VAE(nn.Module):
 
     def forward(self, x):
         mu, log_var = self.encoder(x)
-        z = self.sampling(mu, log_var)
+        z = self.reparametrize(mu, log_var)
         return self.decoder(z), mu, log_var
