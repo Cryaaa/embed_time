@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.datasets import make_classification
 from sklearn.model_selection import cross_val_score, StratifiedKFold, GridSearchCV, train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import Pipeline
+
 from sklearn.svm import SVC
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import seaborn as sns
@@ -12,75 +12,87 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
 
-latent_spaces_unet = {
-    "UNet_20z_Old_Normalisation":pd.read_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_OldNorm.csv"),
-    "UNet_20z_New_Normalisation":pd.read_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_GoodNorm.csv"),
+latent_spaces = {
+    "UNet_20z_Old_Normalisation":pd.read_csv(
+        Path(tabular_data)/"UNet_VAE_01_old_normalisation.csv"
+    ),
+    "UNet_20z_New_Normalisation":pd.read_csv(
+        Path(tabular_data)/"UNet_VAE_02_new_normalisation.csv"
+    ),
+    "Resnet18_26000z_Old_Normalisation":pd.read_csv(
+        Path(tabular_data)/"LinearVAE_01_bicubic_latents_w_annot.csv"
+    ),
+    "Resnet18_26000z_New_Normalisation":pd.read_csv(
+        Path(tabular_data)/"LinearVAE_02_bicubic_latents_w_annot.csv"
+    ),
 }
 
-annotations_unet = {
-    "UNet_20z_Old_Normalisation":pd.read_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_OldNorm_Annotations.csv"),
-    "UNet_20z_New_Normalisation":pd.read_csv(Path(tabular_data)/"20240901_UNet_20z_Latent_Space_GoodNorm_Annotations.csv"),
-}
+df = latent_spaces["UNet_20z_Old_Normalisation"]
+grouped_by_well = df.groupby(["Run","Plate","ID"])
+n_samples = len(grouped_by_well)
+
 # %%
-gt_keys = ["Label","Time"]
+group_dict = grouped_by_well.groups
+group_keys = list(group_dict.keys())
+group_keys[0]
+# %
+labels = [lab[0] for lab in grouped_by_well["Label"].unique().to_numpy()]
+len(labels)
+# %%
+from sklearn.metrics import balanced_accuracy_score
+gt_keys = ["Label","Time","Axes","Run","Plate","ID"]
 results = {}
 
 model_name =["SVC","RF","LDA"]
 
 models = [
     SVC(C=40, kernel='rbf'),
-    RandomForestClassifier(random_state=1,n_jobs=1,n_estimators=500,max_features=300),
+    RandomForestClassifier(random_state=1,n_jobs=10,n_estimators=500,max_features=300),
     LDA(solver='svd'),
 ]
 
-for name, df in latent_spaces_unet.items():
+for name, df in latent_spaces.items():
     results[name] = {}
-    labels = annotations_unet[name]
-    y = labels["Label"].to_numpy() ==  "good"
-    X = df
-    
+    y = df[gt_keys]
+    X = df.drop(gt_keys,axis=1)
+    grouped_by_well = df.groupby(["Run","Plate","ID"])
+    n_samples = len(grouped_by_well)
+    group_dict = grouped_by_well.groups
+    group_keys = list(group_dict.keys())
+    labels = [lab[0] for lab in grouped_by_well["Label"].unique().to_numpy()]
+
     for mod_name, model in zip(model_name,models):
         print(f"{name}, {mod_name}")
 
         # configure the cross-validation procedure
         cv_outer = StratifiedKFold(n_splits=10, shuffle=True, random_state=1)
         # execute the nested cross-validation
-        scores = cross_val_score(model, X, y, scoring='balanced_accuracy', cv=cv_outer, n_jobs=10)
-        # report performance
-        print('Accuracy: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
-        results[name][mod_name] = scores
+        scores = []
+        for i, (idx_keys_train,idx_keys_test) in enumerate(cv_outer.split(range(n_samples),labels)):
+            train_keys = []
+            for j in idx_keys_train:
+                train_keys.append(group_keys[j])
+            train_indices_df = np.concat(
+                [group_dict[key] for key in train_keys]
+            )
+            y_train = y.iloc[train_indices_df]["Label"]=="good"
+            test_keys = []
+            for j in idx_keys_test:
+                test_keys.append(group_keys[j])
+            test_indices_df = np.concat(
+                [group_dict[key] for key in test_keys]
+            )
+            y_test=y.iloc[test_indices_df]["Label"] == "good"
 
-# %%
-latent_spaces_resnet = {
-    "Resnet18_26000z_Old_Normalisation":pd.read_csv((Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_OldNorm.csv")),
-    "Resnet18_26000z_New_Normalisation":pd.read_csv((Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_GoodNorm.csv")),
-}
+            model.fit(X.iloc[train_indices_df],y_train)
+            predictions = model.predict(X.iloc[test_indices_df])
+            score = balanced_accuracy_score(
+                y_true=y_test,
+                y_pred=predictions
+            )
+            print(score)
+            scores.append(score)
 
-annotations_resnet = {
-    "Resnet18_26000z_Old_Normalisation":pd.read_csv((Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_OldNorm_Annotations.csv")),
-    "Resnet18_26000z_New_Normalisation":pd.read_csv((Path(tabular_data)/"20240901_Resnet_26000z_Latent_Space_GoodNorm_Annotations.csv")),
-}
-
-models = [
-    SVC(C=5, kernel='rbf'),
-    RandomForestClassifier(random_state=1,n_jobs=1,n_estimators=500,max_features=300),
-    LDA(solver='svd'),
-
-]
-
-for name, df in latent_spaces_resnet.items():
-    results[name] = {}
-    labels = annotations_resnet[name]
-    y = labels["Label"].to_numpy() ==  "good"
-    X = df
-    
-    for mod_name, model in zip(model_name,models):
-        print(f"{name}, {mod_name}")
-
-        # configure the cross-validation procedure
-        cv_outer = StratifiedKFold(n_splits=10, shuffle=True, random_state=1)
-        # execute the nested cross-validation
-        scores = cross_val_score(model, X, y, scoring='balanced_accuracy', cv=cv_outer, n_jobs=10)
         # report performance
         print('Accuracy: %.3f (%.3f)' % (np.mean(scores), np.std(scores)))
         results[name][mod_name] = scores
