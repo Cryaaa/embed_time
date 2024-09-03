@@ -135,8 +135,6 @@ pyrepo
 # OS Files
 .DS_Store
 
-# Log Folders
+#logs
 embed_time_runs/
 embed_time_static_runs/
-# notebooks/
-*.ipynb
