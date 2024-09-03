@@ -23,7 +23,7 @@ class ModelEvaluator():
 
     def _init_model(self):
         if self.config['model'] == 'VAEResNet18':
-            model = VAEResNet18(nc=self.config['nc'], z_dim=self.config['z_dim'], input_spatial_dim=self.config['input_spatial_dim'])
+            model = VAEResNet18(nc=self.config['nc'], z_dim=self.config['z_dim'])
         elif self.config['model'] == 'VAEResNet18_Linear':
             model = VAEResNet18_Linear(nc=self.config['nc'], z_dim=self.config['z_dim'], input_spatial_dim=self.config['input_spatial_dim'])
         elif self.config['model'] == 'VAE':
@@ -78,7 +78,10 @@ class ModelEvaluator():
                 data = batch['cell_image'].to(self.device)
                 metadata = [batch[key] for key in self.config['metadata_keys']]
                 
-                recon_batch, _, mu, logvar = self.model(data)
+                if self.config['model'] == 'VAEResNet18_Linear':
+                    recon_batch, _, mu, logvar = self.model(data)
+                elif self.config['model'] == 'VAEResNet18':
+                    recon_batch, mu, logvar = self.model(data)
                 mse = F.mse_loss(recon_batch, data, reduction='sum')
                 kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
                 loss = mse + kld * self.config['kld_weight']
@@ -114,6 +117,12 @@ class ModelEvaluator():
         loss, mse, kld, latents, metadata = self.evaluate_model(dataloader)
         print(f"{split.capitalize()} - Loss: {loss:.4f}, MSE: {mse:.4f}, KLD: {kld:.4f}")
         
+        if self.config['model'] == 'VAEResNet18_Linear':
+            print(f"Reconstruction shape: {latents.shape}")
+        elif self.config['model'] == 'VAEResNet18':
+            # flatten the latent vectors
+            latents = latents.view(latents.shape[0], -1)
+            print(f"Latent shape: {latents.shape}")
         # Create DataFrame
         df = pd.DataFrame(metadata, columns=self.config['metadata_keys'])
         latent_df = pd.DataFrame(latents.numpy(), columns=[f'latent_{i}' for i in range(latents.shape[1])])
