@@ -228,10 +228,10 @@ class ZarrCellDataset_specific(Dataset):
         return original_images, cell_masks, nuclei_masks
     
     def _compute_mean(self):
-        total_sum = np.zeros(len(self.channels))
+        total_sum = np.zeros(len(self.channels)) # (1,4,250,250)
         total_count = 0
         for batch in self:
-            image = batch['original_image']
+            image = batch['original_image'] # (1,4,250,250)
             total_sum += image.sum(axis=(1, 2))
             total_count += image.shape[1] * image.shape[2]
         mean = total_sum / total_count

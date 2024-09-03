@@ -135,7 +135,8 @@ class ResNet18Dec(nn.Module):
     def forward(self, z):
         x = torch.relu(self.linear(z))
         x= x.view(-1, 1, 16,16)
-        x = torch.relu(self.firstconv(self.firstconv(x)))
+        x = self.firstnorm(self.firstconv(x))
+        x = torch.relu(x)
         x = self.layer4(x)
         x = self.layer3(x)
         x = self.layer2(x)

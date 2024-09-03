@@ -23,9 +23,10 @@ import yaml
 # Parameters
 model_name = "test_linear_ac_latent_128"
 run_name= "Linear_dataset_split_17_latent_128"
-latent_space_dim = 64
-beta = 1e-5
-n_epochs = 10
+latent_space_dim = 128
+beta = 1e-4
+n_epochs = 15
+find_port = False #change to false if you already have tensorboard running
 
 csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_17_sampled.csv' 
 # csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_804.csv'
@@ -62,8 +63,7 @@ parent_dir = '/mnt/efs/dlmbl/S-md/'
 output_path = '/mnt/efs/dlmbl/G-et/logs/'
 train_ratio = 0.7
 val_ratio = 0.15
-#change to false if you already have tensorboard running
-find_port = True
+
 #%% Define the logger for tensorboard
 # Function to find an available port
 def find_free_port():
