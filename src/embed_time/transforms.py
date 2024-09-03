@@ -188,3 +188,18 @@ def crop_around_centroid_2D(image, centroid, crop_height = 800, crop_width = 800
     cropped_img = np.take(cropped_img,np.arange(x_borders[0],x_borders[1],1),axis=-1)
     return cropped_img
 
+class CropAndReshapeTL(object):
+    def __init__(self,intensity_channel, channel_dim,crop_size,time_dim):
+        self.intensity_channel = intensity_channel
+        self.channel_dim = channel_dim
+        self.crop_size = crop_size
+
+
+    def __call__(self, sample):
+        #shape = sample.shape
+        intensity_image = np.take(sample,[self.intensity_channel],axis=self.channel_dim).squeeze(self.channel_dim)
+        cent = centroid(intensity_image)[-2:]
+
+        cropped = crop_around_centroid_2D(sample,cent,self.crop_size,self.crop_size)
+
+        return np.moveaxis(cropped,0,1)
