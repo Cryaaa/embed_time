@@ -67,16 +67,16 @@ class ZarrDataset(Dataset):
 
         # transformation
         transform_array = np.max(array, axis=2).squeeze(0)
-        print(transform_array.shape)
-        transform_array = scipy.ndimage.zoom(transform_array, zoom=(1, 0.5, 0.5))
-        print(transform_array.shape)
-        flip_prob = np.random.rand(1)
+        # print(transform_array.shape)
+        # transform_array = scipy.ndimage.zoom(transform_array, zoom=(1, 0.5, 0.5))
+        # print(transform_array.shape)
+        # flip_prob = np.random.rand(1)
         
-        if flip_prob >0.5:
-            transform_array = np.flip(transform_array, axis=(1,2)) #(2,2024,2024) 
-            print(transform_array.shape)
-        transform_array = np.rot90(transform_array, k=np.random.randint(4), axes=(1,2))
-        print(transform_array.shape)
+        # if flip_prob >0.5:
+        #     transform_array = np.flip(transform_array, axis=(1,2)) #(2,2024,2024) 
+        #     print(transform_array.shape)
+        # transform_array = np.rot90(transform_array, k=np.random.randint(4), axes=(1,2))
+        # print(transform_array.shape)
         return transform_array
     
 dataset = ZarrDataset("/home/S-ac/embed_time/zarrdata/mitochondria.zarr")

@@ -21,10 +21,10 @@ from datetime import datetime
 import yaml
 
 # Parameters
-model_name = "test_linear_ac_latent_128"
-run_name= "Linear_dataset_split_17_latent_128"
+model_name = "test_linear_ac_latent_128_b5e-6"
+run_name= "Linear_dataset_split_17_latent_128_b5e-6"
 latent_space_dim = 128
-beta = 1e-4
+beta = 5e-6
 n_epochs = 15
 find_port = False #change to false if you already have tensorboard running
 
