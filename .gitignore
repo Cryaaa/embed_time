@@ -138,4 +138,5 @@ pyrepo
 # Log Folders
 embed_time_runs/
 embed_time_static_runs/
-notebooks/
+# notebooks/
+*.ipynb
