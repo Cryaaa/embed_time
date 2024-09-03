@@ -43,7 +43,7 @@ else:
     device = torch.device("cpu")
     
 # Basic values for logging 
-model_name = "static_resnet_vae_md"
+model_name = "benchmark_static_resnet_vae_min_mask_360_1e-5"
 find_port = True
 
 # Function to find an available port
@@ -72,10 +72,10 @@ logger = SummaryWriter(f"embed_time_static_runs/{model_name}")
 
 # Define variables for the dataset read in
 parent_dir = '/mnt/efs/dlmbl/S-md/'
-csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_2.csv'
+csv_file = '/mnt/efs/dlmbl/G-et/csv/dataset_split_benchmark.csv'
 split = 'train'
 channels = [0, 1, 2, 3]
-transform = "masks"
+transform = "min"
 crop_size = 96
 normalizations = v2.Compose([v2.CenterCrop(crop_size)])
 yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
@@ -148,7 +148,7 @@ def train(
         
         recon_batch, mu, logvar = vae(data)
         MSE, KLD  = loss_function(recon_batch, data, mu, logvar)
-        loss = MSE + KLD * 1e-5
+        loss = MSE + KLD * 1e-8
         
         loss.backward()
         train_loss += loss.item()
@@ -244,7 +244,7 @@ def train(
 
 # Training loop
 output_dir = '/mnt/efs/dlmbl/G-et/'
-run_name= "resnet_test"
+run_name= model_name
 
 folder_suffix = datetime.now().strftime("%Y%m%d_%H%M_") + run_name
 log_path = output_dir + "logs/static/Matteo/"+ folder_suffix + "/"
@@ -255,7 +255,7 @@ if not os.path.exists(log_path):
 if not os.path.exists(checkpoint_path):
     os.makedirs(checkpoint_path)
 
-for epoch in range(1, 100):
+for epoch in range(1, 30):
     train(epoch, log_interval=100, log_image_interval=20, tb_logger=logger)
     filename_suffix = datetime.now().strftime("%Y%m%d_%H%M%S_") + "epoch_"+str(epoch) + "_"
     training_logDF = pd.DataFrame(training_log)

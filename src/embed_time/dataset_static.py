@@ -114,8 +114,11 @@ class ZarrCellDataset(Dataset):
             fill = self._mean[:, None, None] if self._mean is not None else 0
             cell_image = np.where(cell_mask, original_image, fill)
             nuclei_image = np.where(nuclei_mask, original_image, fill)
+        elif self.mask == "min":
+            fill = original_image.min(axis=(1, 2))[:, None, None]
+            cell_image = np.where(cell_mask, original_image, fill)
+            nuclei_image = np.where(nuclei_mask, original_image, fill)
         else:
-            print("Only 'masks' is supported for mask, passing unmasked images")
             cell_image = original_image
             nuclei_image = original_image
 
@@ -257,10 +260,14 @@ class ZarrCellDataset_specific(Dataset):
             fill = self._mean[:, None, None] if self._mean is not None else 0
             cell_image = np.where(cell_mask, original_image, fill)
             nuclei_image = np.where(nuclei_mask, original_image, fill)
+        elif self.mask == "min":
+            fill = original_image.min(axis=(1, 2))[:, None, None]
+            cell_image = np.where(cell_mask, original_image, fill)
+            nuclei_image = np.where(nuclei_mask, original_image, fill)
         else:
-            print("Only 'masks' is supported for mask, passing unmasked images")
             cell_image = original_image
             nuclei_image = original_image
+
 
         if self._mean is not None and self._std is not None:
             cell_image = (cell_image - self._mean[:, None, None]) / self._std[:, None, None]

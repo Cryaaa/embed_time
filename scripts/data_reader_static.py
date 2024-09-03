@@ -111,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--barcode_name", type=str, default="ATATGAGCACAATAACGAGC", help="Barcode name for specific dataset")
     parser.add_argument("--channels", nargs="+", type=int, default=[0, 1, 2, 3], help="Channels to use")
     parser.add_argument("--cell_cycle_stages", type=str, default="interphase", help="Cell cycle stages")
-    parser.add_argument("--mask", type=str, default="masks", help="Mask type")
+    parser.add_argument("--mask", type=str, default="min", help="Mask type")
     parser.add_argument("--crop_size", type=int, default=100, help="Size for center crop")
     parser.add_argument("--csv_file", type=str, default="/home/S-md/embed_time/notebooks/splits/split_804.csv", help="CSV file for dataset")
     parser.add_argument("--split", type=str, default="train", help="Dataset split to use")
