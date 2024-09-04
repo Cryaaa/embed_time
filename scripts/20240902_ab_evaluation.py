@@ -8,10 +8,12 @@ from torchvision.transforms import v2
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.manifold import TSNE
 from matplotlib.colors import ListedColormap
 import umap
 from embed_time.model_VAE_resnet18 import VAEResNet18
-from datasets.neuromast import NeuromastDatasetTest, NeuromastDatasetTrain_T10
+from embed_time.neuromast import NeuromastDatasetTest, NeuromastDatasetTrain_T10
 
 
 
@@ -67,11 +69,11 @@ def plot_reconstructions(model, dataloader, device):
         fig, axes = plt.subplots(1,2, figsize=(20, 10))
         
         
-        axes[0].imshow(original[0], cmap='gray')
-        axes[0].set_title(f'Input_image {label[image_idx]}', fontsize=30)
+        axes[0].imshow(original[0], cmap='Greens')
+        axes[0].set_title(f'Input_image {label[image_idx]}', fontsize=15)
         axes[0].axis('off')
-        axes[1].imshow(reconstruction[0], cmap='gray')
-        axes[1].set_title(f'Reconstructed_image', fontsize=30)
+        axes[1].imshow(reconstruction[0], cmap='Greens')
+        axes[1].set_title(f'Reconstructed_image', fontsize=15)
         axes[1].axis('off')
         
         plt.tight_layout()
@@ -82,13 +84,43 @@ def plot_reconstructions(model, dataloader, device):
         print(f"Original image min/max values: {original.min():.4f}/{original.max():.4f}")
         print(f"Reconstructed image min/max values: {reconstruction.min():.4f}/{reconstruction.max():.4f}")
 #%%
-def create_pca_plots(train_latents, val_latents, train_df, val_df):
-    # Step 1: Perform PCA
-    pca = PCA(n_components=2)
-    train_latents_pca = pca.fit_transform(train_latents)
-    val_latents_pca = pca.transform(val_latents)
+# Visualization Functions
+def plot_image(model, dataloader, device):
     
-    # Step 2: Prepare the plot
+    with torch.no_grad():
+        batch, label = next(iter(dataloader))
+        data = batch.to(device)
+        
+        
+        image_idx = np.random.randint(data.shape[0])
+        original = data[image_idx].cpu().numpy()
+        
+        
+        fig, axes = plt.subplots(1,1, figsize=(20, 10))
+        
+        
+        axes.imshow(original[0], cmap='Greens')
+        axes.set_title(f'Input_image {label[image_idx]}', fontsize=15)
+        axes.axis('off')
+       
+        
+        plt.tight_layout()
+
+        plt.show()
+        
+#%%
+def create_pca_plots(train_latents, val_latents, train_df, val_df):
+   # Step 1: Scale the features
+    scaler = StandardScaler()
+    train_latents_scaled = scaler.fit_transform(train_latents)
+    val_latents_scaled = scaler.transform(val_latents)
+    
+    # Step 2: Perform PCA
+    pca = PCA(n_components=2)
+    train_latents_pca = pca.fit_transform(train_latents_scaled)
+    val_latents_pca = pca.transform(val_latents_scaled)
+    
+    # Step 3: Prepare the plot
     fig, axes = plt.subplots(1,2, figsize=(25, 10))
     
     # Helper function to create a color map
@@ -176,8 +208,54 @@ def create_umap_plots(train_latents, val_latents, train_df, val_df):
     cbar = fig.colorbar(scatter, ax=ax)
     cbar.set_ticks([1, 2, 3])
     cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+#%% 
+def create_tsne_plots(train_latents, val_latents, train_df, val_df):
+    # Step 1: Scale the features
+    scaler = StandardScaler()
+    train_latents_scaled = scaler.fit_transform(train_latents)
+    val_latents_scaled = scaler.transform(val_latents)
     
+    # Step 2: Perform t-SNE
+    tsne = TSNE(n_components=2, random_state=42)
+    train_latents_tsne = tsne.fit_transform(train_latents_scaled)
+    val_latents_tsne = tsne.transform(val_latents_scaled)
+    
+    # Step 3: Prepare the plot
+    fig, axes = plt.subplots(1, 2, figsize=(25, 10))
+    
+    # Helper function to create a color map
+    def create_color_map(n):
+        return ListedColormap(plt.cm.viridis(np.linspace(0, 1, n)))
+    
+    # Step 4: Plot t-SNE for the training set
+    ax = axes[0]
+    scatter = ax.scatter(train_latents_tsne[:, 0], train_latents_tsne[:, 1], c=train_df['Labels'], cmap=create_color_map(len(np.unique(train_df['Labels']))), s=100)
+    ax.set_title('t-SNE of Training Latents', fontsize=40)
+    ax.set_xlabel('t-SNE Component 1', fontsize=40)
+    ax.set_ylabel('t-SNE Component 2', fontsize=40)
+    
+    # Create a color bar with specific ticks and labels
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
+    # Step 5: Plot t-SNE for the validation set
+    ax = axes[1]
+    scatter = ax.scatter(val_latents_tsne[:, 0], val_latents_tsne[:, 1], c=val_df['Labels'], cmap=create_color_map(len(np.unique(val_df['Labels']))), s=100)
+    ax.set_title('t-SNE of Validation Latents', fontsize=40)
+    ax.set_xlabel('t-SNE Component 1', fontsize=40)
+    ax.set_ylabel('t-SNE Component 2', fontsize=40)
+    
+    # Create a color bar with specific ticks and labels
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_ticks([1, 2, 3])
+    cbar.set_ticklabels(['1-SC', '2-MC', '3-HC'], fontsize=40)
+    
+    plt.tight_layout()
+    plt.show()
 
+# Example usage (assuming you have train_latents, val_latents, train_df, val_df defined)
+# create_tsne_plots(train_latents, val_latents, train_df, val_df)
 
 #%%
 # Main Execution
@@ -219,13 +297,22 @@ if __name__ == "__main__":
     val_df = pd.DataFrame(val_metadata, columns=['Labels'])
     val_df = pd.concat([val_df, pd.DataFrame(val_latents.numpy())], axis=1)
 #%%
-    # Visualizations
-    plot_reconstructions(model, dataloader_val, device)
-    plot_reconstructions(model, dataloader_train, device)
-   
+# Visualizations
+plot_image(model, dataloader_train, device)
+# plot_reconstructions(model, dataloader_train, device)
+
+#%%
+plot_reconstructions(model, dataloader_val, device)
+
 
 #%%
 create_pca_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
 #%%
 create_umap_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
 # %%
+#save the dataframes
+checkpoint_dir = "/mnt/efs/dlmbl/G-et/checkpoints/static/Akila/20240903z_dim-22_lr-0.0001_beta-1e-07/_epoch_6/"
+train_df.to_csv(checkpoint_dir+"Train10_latentvectors_mu_df.csv", index=False)
+val_df.to_csv(checkpoint_dir+"Test10_latentvectors_mu_df.csv", index=False)
+# %%
+create_tsne_plots(train_latents.numpy(), val_latents.numpy(), train_df, val_df)
