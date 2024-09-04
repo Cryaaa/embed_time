@@ -74,23 +74,8 @@ class LiveTLSDatasetPairedOutput(Dataset):
             self.img_dir,
             self.annotations.iloc[idx][self.file_name_column]
         )
-        label_sample = self.annotations.iloc[idx][self.label_column]
-        all_labels = np.array(["good","bad"])
-        opposite_label = all_labels[np.argwhere(all_labels!=label_sample)][0][0]
-        opposite_df = self.annotations[self.annotations[self.label_column]==opposite_label]
-        random_index = np.random.randint(0,len(opposite_df))
-        opp_img_path = os.path.join(
-            self.img_dir,
-            opposite_df.iloc[random_index][self.file_name_column]
-        )
-
-        #print(label_sample)
-        #print(opposite_label)
-
         image = tiff.imread(img_path)
-        opp_img = tiff.imread(opp_img_path)
         if self.transform:
             image = self.transform(image)
-            opp_img = self.transform(opp_img)
 
         return image
