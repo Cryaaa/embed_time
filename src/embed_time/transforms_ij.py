@@ -1,6 +1,6 @@
 import numpy as np
 from skimage.exposure import rescale_intensity
-from torch import from_numpy
+from torch import from_numpy, clip
 
 class SelectRandomTimepoint(object):
     """Select a random timepoint form the time series
@@ -81,4 +81,14 @@ class CustomToTensor(object):
         pass
 
     def __call__(self, sample):
-        return from_numpy(sample)
+        return from_numpy(sample).float()
+    
+class ShiftIntensity(object):
+    """ShiftIntensity: shift intensity by float factor and clip within (0, 1)
+    """
+
+    def __init__(self, bf_factor):
+        self.bf_factor = np.random.uniform(0.5, bf_factor)
+
+    def __call__(self, sample):
+        return clip((sample * self.bf_factor), 0, 1)

@@ -26,6 +26,7 @@ import umap
 
 # %%
 base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
+# checkpoint_dir = Path(base_dir) / "2024-09-03_Resnet18_VAE_norm_+aug_sox2only_02_ij_checkpoints"
 checkpoint_dir = Path(base_dir) / "2024-09-02_Resnet18_VAE_norm_01_ij_checkpoints"
 print(checkpoint_dir)
 checkpoint_dir.mkdir(exist_ok=True)
@@ -65,6 +66,7 @@ model.to(device)
 # %%
 model_params = dict['model']
 model.load_state_dict(model_params)
+
 # %%
 dataloader = DataLoader(dataset_w_t, batch_size=1, shuffle=False, pin_memory=True, num_workers=8)
 
@@ -82,8 +84,6 @@ fig, ax = plt.subplots(1,plot_images,figsize=(plot_images*plot_size,plot_size))
 
 ax[0].imshow(test_image.squeeze(0).numpy()[0])
 ax[1].imshow(test_image.squeeze(0).numpy()[1])
-
-# %%
 test_image.shape
 
 # %%
@@ -91,7 +91,6 @@ model.eval()
 result = model(test_image.to(device))
 result = result[0].detach().cpu().squeeze().numpy()
 result.shape
-
 
 # %%
 fig, ax = plt.subplots(2,2,figsize=(2*plot_size,2*plot_size))
@@ -154,25 +153,26 @@ latents
 
 # %%
 print(latents.shape)
-
-# %%
-flat_lat = np.array([lat.flatten() for lat in latents])
-print(flat_lat.size)
+# x = 5 samples x 529 rafts x 9 tp
+# y = (21 x 21 px) x 20 z_dim
 
 # %%
 tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
 if not os.path.isdir(tabular_data):
     os.mkdir(tabular_data)
 df_lat = pd.DataFrame(
-    flat_lat,
-    columns = [f"LD_mu_{i+1}" for i in range(flat_lat.shape[1])]
+    latents,
+    columns = [f"LD_mu_{i+1}" for i in range(latents.shape[1])]
 )
 df_lat['Time'] = timepoints
 df_lat['Raft'] = rafts
 
-df_lat.to_csv(Path(tabular_data) / "20240902_Resnet_20z_LatentSpace_Norm_ij.csv")
+df_lat.to_csv(Path(tabular_data) / "20240903_Resnet_20z_LatentSpace_Norm_+aug_sox2only_ij.csv",
+              index=False)
 
 # %%
+
+# Only run if loading df_lat from saved csv file.
 tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
 df_lat = pd.read_csv(Path(tabular_data) / "20240902_Resnet_20z_LatentSpace_Norm_ij.csv")
 
@@ -184,7 +184,9 @@ print(rafts)
 
 # %%
 df_lat = StandardScaler().fit_transform(
-    df_lat.drop(columns=['Unnamed: 0', 'Time', 'Raft']))
+    df_lat.drop(columns=['Time', 'Raft']))
+# df_lat = StandardScaler().fit_transform(
+#     df_lat.drop(columns=['Unnamed: 0', 'Time', 'Raft']))
 
 # %%
 components=5
@@ -248,6 +250,176 @@ sns.scatterplot(shuffle(umap_df),
                 palette="viridis")
 
 # %%
-umap_df.to_csv(Path(tabular_data) / "20240902_Resnet_20z_LatentSpace_Norm_ij_umap.csv")
+print(len(rafts))
+
+# %%
+from skimage import io
+from scipy import stats
+
+arr = 1
+raft_dict = {}
+
+for img_name in os.listdir(folder_imgs):
+    raft_num = str(img_name)[-7:-4]
+    img = io.imread(Path(folder_imgs) / img_name)
+    img = img[:, 1].flatten()
+
+    per_25 = np.percentile(img, 25)
+    stdev = np.std(img)
+    mean = np.mean(img)
+
+    histo = np.histogram(img, bins=256, range=(0,1), density=True)[0]
+    ent = stats.entropy(histo, base=2)
+
+    raft_dict[raft_num] = (per_25, stdev, mean, ent)
+    
+
+# %%
+per_25_list = []
+stdev_list = []
+mean_list = []
+ent_list = []
+
+count = 0
+for raft in rafts:
+    raft_num = str(raft)[-7:-4]
+    per_25_list.append(raft_dict[raft_num][0])
+    stdev_list.append(raft_dict[raft_num][1])
+    mean_list.append(raft_dict[raft_num][2])
+    ent_list.append(raft_dict[raft_num][3])
+    count += 1
+print(len(ent_list))
+
+# %%
+
+# Create UMAP
+umap_transformer = umap.UMAP(n_neighbors = 30)
+umap_out = umap_transformer.fit_transform(df_lat)
+
+umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
+umap_df["Time"] = timepoints
+umap_df["Rafts"] = rafts
+umap_df["Per_25"] = per_25_list
+umap_df["Stdev"] = stdev_list
+umap_df["Mean"] = mean_list
+umap_df["Ent"] = ent_list
+
+umap_df.head()
+
+# %% 
+
+label = 'Per_25'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+# %% 
+
+label = 'Stdev'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+# %% 
+
+label = 'Mean'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+# %% 
+
+cov_list = np.divide(np.array(stdev_list), np.array(mean_list))
+umap_df["COV"] = cov_list
+
+label = 'COV'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+# %% 
+
+label = 'Ent'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+# %% 
+
+label = 'Time'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
+
+
+# %%
+umap_df.to_csv(Path(tabular_data) / "20240903_Resnet_20z_LatentSpace_Norm_+aug_sox2only_ij_umap.csv",
+              index=False)
 
 # %%
