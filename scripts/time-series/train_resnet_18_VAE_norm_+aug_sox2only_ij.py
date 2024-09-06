@@ -228,12 +228,13 @@ def launch_tensorboard(log_dir):
 
 if __name__ == "__main__":
     base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
-    model_name = "Resnet18_VAE_norm_+aug_sox2only_03_ij"
+    model_name = "Resnet18_VAE_norm_masked_+aug_sox2only_03_ij"
     checkpoint_dir = Path(base_dir) / f"{datetime.today().strftime('%Y-%m-%d')}_{model_name}_checkpoints"
     print(checkpoint_dir)
 
     checkpoint_dir.mkdir(exist_ok=True)
-    folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Norm/"
+    folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Masked/"
+    # folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Norm/"
 
     tensorboard_process = launch_tensorboard("resnet_runs")
     logger = SummaryWriter(f"{base_dir}/{datetime.today().strftime('%Y-%m-%d')}_{model_name}")
@@ -242,14 +243,15 @@ if __name__ == "__main__":
         SelectRandomTPNumpy(0),
         CustomToTensor(),
         v2.Resize((336,336)),
-        ShiftIntensity(bf_factor=2),
+        # ShiftIntensity(bf_factor=2),
         v2.RandomAffine(
             degrees=90,
             translate=[0.1,0.1],
         ),
         v2.RandomHorizontalFlip(),
         v2.RandomVerticalFlip(),
-        v2.GaussianBlur(kernel_size=15, sigma=(0.1,20.0)),
+        v2.GaussianBlur(kernel_size=5, sigma=(0.1,10.0)),
+        # v2.GaussianBlur(kernel_size=15, sigma=(0.1,20.0)),
     ])
 
     dataset_w_t = LiveGastruloidDataset(

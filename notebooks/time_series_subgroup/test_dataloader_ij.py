@@ -3,6 +3,8 @@ from pathlib import Path
 import os
 from skimage import io
 from skimage.exposure import rescale_intensity
+from skimage.filters import gaussian, threshold_otsu
+from skimage.morphology import opening, disk, remove_small_objects, convex_hull_image
 import tifffile as tiff
 import numpy as np
 
@@ -93,3 +95,37 @@ fig,axs = plt.subplots(1, 9, figsize=(15,5))
 for i,ax in enumerate(axs):
     ax.imshow(scaled_sox2[i])
 plt.tight_layout()
+
+# %%
+arr = 1
+img_dir = r'/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis'
+mask_dir = r'/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Calcein_Analysis/Individual Raft Images/array1_timepoint00_Green'
+masked_dir = Path(img_dir) / 'Individual Raft Images Masked'
+masked_dir.mkdir(parents=True, exist_ok=True)
+print(masked_dir)
+
+for mask_name in os.listdir(mask_dir):
+    raft = mask_name[-7:-4]
+    img_path = Path(img_dir) / 'Individual Raft Images Norm' / f'array{arr}_raft{raft}.tif'
+    if not img_path.exists():
+        continue
+
+    img = io.imread(img_path)
+    mask = io.imread(Path(mask_dir) / mask_name)
+    gaus = gaussian(mask, sigma=2, preserve_range=True)
+    threshVal = threshold_otsu(mask)
+    thresh = gaus > threshVal
+    hull = opening(thresh, disk(5))
+    hull = remove_small_objects(hull, min_size=25000)
+    hull = convex_hull_image(hull)
+
+    masked = img * hull
+    # io.imshow(mask[0, 1])
+
+    output_masked = masked_dir / f'array{arr}_raft{raft}.tif'
+    if output_masked.exists():
+        os.remove(str(output_masked)) 
+    else:
+        tiff.imwrite(output_masked, masked)
+        print(output_masked)
+# %%

@@ -26,12 +26,14 @@ import umap
 
 # %%
 base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
+checkpoint_dir = Path(base_dir) / "2024-09-04_Resnet18_VAE_norm_masked_+aug_sox2only_03_ij_checkpoints"
 # checkpoint_dir = Path(base_dir) / "2024-09-03_Resnet18_VAE_norm_+aug_sox2only_02_ij_checkpoints"
-checkpoint_dir = Path(base_dir) / "2024-09-02_Resnet18_VAE_norm_01_ij_checkpoints"
+# checkpoint_dir = Path(base_dir) / "2024-09-02_Resnet18_VAE_norm_01_ij_checkpoints"
 print(checkpoint_dir)
 checkpoint_dir.mkdir(exist_ok=True)
 
-folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Norm/"
+folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Masked/"
+# folder_imgs = r"/mnt/efs/dlmbl/G-et/data/live_gastruloid/240722_R2GLR_1.8e6_0-48hrBMP4_0%aneu_2_Analysis/Individual Raft Images Norm/"
 
 loading_transforms_test = trans.Compose([
     SelectRandomTPNumpy(0),
@@ -167,7 +169,7 @@ df_lat = pd.DataFrame(
 df_lat['Time'] = timepoints
 df_lat['Raft'] = rafts
 
-df_lat.to_csv(Path(tabular_data) / "20240903_Resnet_20z_LatentSpace_Norm_+aug_sox2only_ij.csv",
+df_lat.to_csv(Path(tabular_data) / "20240904_Resnet_20z_LatentSpace_Norm_Maksed_+aug_sox2only_ij.csv",
               index=False)
 
 # %%
@@ -242,13 +244,6 @@ umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
 umap_df["Time"] = timepoints
 umap_df["Rafts"] = rafts
 
-sns.scatterplot(shuffle(umap_df),
-                x="UMAP_1",
-                y="UMAP_2",
-                hue="Time",
-                alpha=0.5,
-                palette="viridis")
-
 # %%
 print(len(rafts))
 
@@ -263,6 +258,7 @@ for img_name in os.listdir(folder_imgs):
     raft_num = str(img_name)[-7:-4]
     img = io.imread(Path(folder_imgs) / img_name)
     img = img[:, 1].flatten()
+    hull_area = np.sum(img > 0)
 
     per_25 = np.percentile(img, 25)
     stdev = np.std(img)
@@ -271,7 +267,7 @@ for img_name in os.listdir(folder_imgs):
     histo = np.histogram(img, bins=256, range=(0,1), density=True)[0]
     ent = stats.entropy(histo, base=2)
 
-    raft_dict[raft_num] = (per_25, stdev, mean, ent)
+    raft_dict[raft_num] = (per_25, stdev, mean, ent, hull_area)
     
 
 # %%
@@ -279,15 +275,15 @@ per_25_list = []
 stdev_list = []
 mean_list = []
 ent_list = []
+hull_list = []
 
-count = 0
 for raft in rafts:
     raft_num = str(raft)[-7:-4]
     per_25_list.append(raft_dict[raft_num][0])
     stdev_list.append(raft_dict[raft_num][1])
     mean_list.append(raft_dict[raft_num][2])
     ent_list.append(raft_dict[raft_num][3])
-    count += 1
+    hull_list.append(raft_dict[raft_num][4])
 print(len(ent_list))
 
 # %%
@@ -303,6 +299,7 @@ umap_df["Per_25"] = per_25_list
 umap_df["Stdev"] = stdev_list
 umap_df["Mean"] = mean_list
 umap_df["Ent"] = ent_list
+umap_df["Hull"] = hull_list
 
 umap_df.head()
 
@@ -417,6 +414,23 @@ sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
 sm.set_array([])
 cbar = plt.colorbar(sm, ax=scatter.axes)
 
+# %% 
+
+label = 'Hull'
+
+plt.figure(figsize=(8, 6))
+scatter = sns.scatterplot(shuffle(umap_df),
+                          x="UMAP_1",
+                          y="UMAP_2",
+                          hue=label,
+                          alpha=0.5,
+                          palette="viridis",
+                          legend=False)
+
+norm = plt.Normalize(umap_df[label].min(), umap_df[label].max())
+sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=scatter.axes)
 
 # %%
 umap_df.to_csv(Path(tabular_data) / "20240903_Resnet_20z_LatentSpace_Norm_+aug_sox2only_ij_umap.csv",
