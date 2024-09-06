@@ -111,21 +111,21 @@ def plot_image(model, dataloader, device):
 #%%
 def create_pca_plots(train_latents, val_latents, train_df, val_df):
    # Step 1: Scale the features
-    scaler = StandardScaler()
-    train_latents_scaled = scaler.fit_transform(train_latents)
-    val_latents_scaled = scaler.transform(val_latents)
+    # scaler = StandardScaler()
+    # train_latents_scaled = scaler.fit_transform(train_latents)
+    # val_latents_scaled = scaler.transform(val_latents)
     
     # Step 2: Perform PCA
     pca = PCA(n_components=2)
-    train_latents_pca = pca.fit_transform(train_latents_scaled)
-    val_latents_pca = pca.transform(val_latents_scaled)
+    train_latents_pca = pca.fit_transform(train_latents)
+    val_latents_pca = pca.transform(val_latents)
     
     # Step 3: Prepare the plot
     fig, axes = plt.subplots(1,2, figsize=(25, 10))
     
     # Helper function to create a color map
     def create_color_map(n):
-        return ListedColormap(plt.cm.viridis(np.linspace(0, 1, n)))
+        return ListedColormap(plt.cm.Greens(np.linspace(0.25, 1, n)))
     # Assuming you have 3 unique labels
     
     # Step 3: Plot PCA for the training set
@@ -302,6 +302,7 @@ plot_image(model, dataloader_train, device)
 # plot_reconstructions(model, dataloader_train, device)
 
 #%%
+plot_reconstructions(model, dataloader_train, device)
 plot_reconstructions(model, dataloader_val, device)
 
 
