@@ -44,17 +44,19 @@ class BasicBlockEnc(nn.Module):
 
 class ResNet18Enc(nn.Module):
 
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
+    def __init__(self, num_Blocks=[2,2,2,2], oc=10, nc=3):
         super().__init__()
         self.in_planes = 64
-        self.z_dim = z_dim
+        self.oc = oc
         self.conv1 = nn.Conv2d(nc, 64, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.layer1 = self._make_layer(BasicBlockEnc, 64, num_Blocks[0], stride=1)
         self.layer2 = self._make_layer(BasicBlockEnc, 128, num_Blocks[1], stride=2)
         self.layer3 = self._make_layer(BasicBlockEnc, 256, num_Blocks[2], stride=2)
         self.layer4 = self._make_layer(BasicBlockEnc, 512, num_Blocks[3], stride=2)
-        self.linear = nn.Conv2d(512, 2 * z_dim, kernel_size=1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1)) #TODO
+        self.linear = nn.Linear(512, oc)
+
         #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
     def _make_layer(self, BasicBlockEnc, planes, num_Blocks, stride):
@@ -71,31 +73,34 @@ class ResNet18Enc(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        x = self.linear(x)
-        print(x.shape)
-        mu, logvar = torch.chunk(x, 2, dim=1)
-        return mu, logvar
+        x = self.avgpool(x)
+        x_flat = x.view(x.size(0), -1)
+        #print(x_flat) # torch.Size([16, 3])
+        x = self.linear(x_flat)
+
+
+
+        return x
 
     
 class ResNet18(nn.Module):
     
-    def __init__(self, nc, z_dim):
+    def __init__(self, nc=3, oc=10):
         super().__init__()
-        self.encoder = ResNet18Enc(nc=nc, z_dim=z_dim)
+        self.encoder = ResNet18Enc(nc=nc, oc=oc)
 
-        # TODO: global average pooling 
-        self.dense = nn.Sequential(
-            nn.Linear(in_features=32 * 7 * 7, out_features=64),
-            nn.ReLU(),
-            nn.Linear(in_features=64, out_features=10),
-        )
+
+        # self.dense = nn.Sequential(
+        #     nn.Linear(in_features=32 * 7 * 7, out_features=64),
+        #     nn.ReLU(),
+        #     nn.Linear(in_features=64, out_features=10),
+        # )
 
 
 
     def forward(self, x):
-        mean, logvar = self.encoder(x)
+        x = self.encoder(x)
 
-        x = self.decoder(z)
-        return x, 
+        return x
     
 

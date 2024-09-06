@@ -147,10 +147,14 @@ class VAEResNet18(nn.Module):
         mean, logvar = self.encoder(x)
         z = self.reparameterize(mean, logvar)
         x = self.decoder(z)
+
+
+
         return x, z, mean, logvar
     
     @staticmethod
     def reparameterize(mean, logvar):
         std = torch.exp(logvar / 2) # in log-space, squareroot is divide by two
         epsilon = torch.randn_like(std)
+
         return epsilon * std + mean

@@ -17,7 +17,16 @@ maskth = 230 # threshold for mask
 for zarrfile in datapath.iterdir():
     #TODO: run for all. Some files are empty!
 
-    print(zarrfile)
+    # skip if file exists 
+    if (newpath/zarrfile.name).exists():
+        print('skipping', zarrfile)
+        continue
+
+    # skip hidden directories
+    if zarrfile.name.startswith('.'):
+        continue
+    print('processing', zarrfile)
+
     inarray = dask.array.from_zarr(zarrfile) # load the image
     inarray = inarray[:].transpose(2, 0, 1)
     inarray.to_zarr(newpath/zarrfile.name, overwrite=True) # save the image
@@ -26,10 +35,14 @@ for zarrfile in datapath.iterdir():
 
     masked = masked.sum(axis=0)
     masked = masked < maskth*3
-    plt.imshow(masked)
-    plt.show()
+
     masked.to_zarr(maskpath/zarrfile.name, overwrite=True) # save the image
     
     zarrmask = zarr.open(maskpath/zarrfile.name)
     zarrmask.attrs['voxel_size'] = (16,16)
     #break
+
+
+
+    # task 1: can use resnet for classification only (only encoder, no latent space)
+    # or use the latentspace for classification ()

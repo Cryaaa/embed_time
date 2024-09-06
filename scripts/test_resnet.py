@@ -61,7 +61,7 @@ test = [
     item for item in (datapath / 'zarrtransposed').iterdir() if ("25868" in item.name) and (int(item.name[8]) % 2 == 1 and (int(item.name[8]) <= 4))  # A list of image names
 ]
 
-testname = test[2].name
+testname = test[0].name
 
 raw = gp.ArrayKey('RAW') # this the raw image
 mask = gp.ArrayKey('MASK') # this is the mask
@@ -104,7 +104,7 @@ newy0 = int(np.floor(0.5 * multiplesy) * patch_size)
 # newy1 = int(ymax - newy0)
 
 
-total_roi = gp.Roi((300*patch_size, 240*patch_size), (90*patch_size, 90*patch_size))
+total_roi = gp.Roi((300*patch_size, 240*patch_size), (200*patch_size, 200*patch_size))
 
 
 testsource += gp.torch.Predict(

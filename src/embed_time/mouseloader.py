@@ -11,15 +11,12 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 
 
-def show_one_image(image_path):
-    image = imageio.imread(image_path)
-    plt.imshow(image)
 
 class MouseDataset(Dataset):
     """A PyTorch dataset to load cell images and nuclei masks"""
 
-    def __init__(self, root_dir=".", transform=None, img_transform=None):
-        self.root_dir = root_dir  # the directory with all the training samples
+    def __init__(self, parent_dir, transform=None, img_transform=None, channels=[0, 1, 2], crop_size=None):
+        self.parent_dir = parent_dir  # the directory with all the training samples
         self.samples = os.listdir(self.root_dir)  # list the samples
         self.transform = (
             transform  # transformations to apply to both inputs and targets
@@ -151,3 +148,8 @@ def apply_and_show_random_image(f, ds):
         # for spine in ["bottom", "top", "left", "right"]: # get rid of box
         #     ax.spines[spine].set_visible(False)
 
+
+
+datapath = ''
+
+mousedata = MouseDataset()

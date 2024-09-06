@@ -7,7 +7,8 @@ from embed_time.vae import VAEResNet18
 import torch
 import numpy as np
 from tqdm import tqdm
-
+from torch.utils.tensorboard import SummaryWriter
+import subprocess
 
 raw = gp.ArrayKey('RAW') # this the raw image
 mask = gp.ArrayKey('MASK') # this is the mask
@@ -15,6 +16,11 @@ label = gp.ArrayKey('LABEL') # this is the label
 
 datapath = Path("/mnt/efs/dlmbl/G-et/data/mousepanc") # path to the data
 sources = []
+
+
+logger = SummaryWriter("runs/vae")
+
+
 
 class AddLabel(gp.BatchFilter):
 
@@ -38,30 +44,30 @@ class AddLabel(gp.BatchFilter):
 
 
 
-labels = []
+train = [
+    item for item in (datapath / 'zarrtransposed').iterdir() if ("25868" in item.name) and (int(item.name[8]) % 2 == 0)  # A list of image names
+]
 
-def getlabel(test_zarr):
-    if '25868' in test_zarr.name:
-        if '25868$1.' in test_zarr.name:
+
+def getlabel(inzarr):
+    if '25868' in inzarr.name:
+        if '25868$1.' in inzarr.name:
             return 0
-        elif '25868$2.' in test_zarr.name:
+        elif '25868$2.' in inzarr.name:
             return 1
         else: 
             return 2
 
 
+for inzarr in train:
+#for test_zarr in (datapath / "zarrtransposed").iterdir():
 
-for test_zarr in (datapath / "zarrtransposed").iterdir():
 
-    if not "25868" in test_zarr.name: # subset to only 25868 for now 
-        print("skipping", test_zarr.name)
-        continue
-
-    test_image = Array(zarr.open(datapath / "zarrtransposed"/ test_zarr.name), axis_names=["color^", "x", "y"])
-    test_mask = Array(zarr.open(datapath / "masks" / test_zarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
+    test_image = Array(zarr.open(datapath / "zarrtransposed"/ inzarr.name), axis_names=["color^", "x", "y"])
+    test_mask = Array(zarr.open(datapath / "masks" / inzarr.name), axis_names=["x", "y"], voxel_size=(16, 16))
     
-    #print(test_zarr.name)
-    gtlabel = getlabel(test_zarr) #np.random.randint(0, 3) #generate random labels 
+
+    gtlabel = getlabel(inzarr) #np.random.randint(0, 3) #generate random labels 
     #print(gtlabel)
     
     image_source = gp.ArraySource(raw, test_image, interpolatable=True) # put image into gunpowder pipeline
@@ -93,7 +99,7 @@ request[label] = gp.ArraySpec(nonspatial=True)
 
 z_dim = 128 # dimensions of the latent space
 input_channels = 3
-n_iter = 10000
+n_iter = 500
 
 vae = VAEResNet18(nc = input_channels, z_dim = z_dim)
 #loss_function: torch.nn.Module = torch.nn.MSELoss() #TODO: try L1 loss instead
@@ -133,8 +139,8 @@ with gp.build(source):
         optimizer.zero_grad()
 
 
-        x, z, mean, logvar = vae(x_in_t) # data goes to the foreward function
-        rec_loss = loss_function(x, x_in_t)
+        x_hat, z, mean, logvar = vae(x_in_t) # data goes to the foreward function
+        rec_loss = loss_function(x_hat, x_in_t)
 
         kl_loss = kld_loss(mean, logvar)
 
@@ -145,6 +151,34 @@ with gp.build(source):
         kllosses.append(kl_loss.item())
         loss.backward()
         optimizer.step()
+
+
+        # log to tensorboard
+
+        step = n
+        logger.add_scalar(
+            tag="train_loss", scalar_value=loss.item(), global_step=step
+        )
+        logger.add_scalar(
+            tag="rec_loss", scalar_value=rec_loss.item(), global_step=step
+        )
+        logger.add_scalar(
+            tag="kl_loss", scalar_value=kl_loss.item(), global_step=step
+        )
+
+        # check if we log images in this iteration
+
+        logger.add_images(
+            tag="target", img_tensor=x_hat.to("cpu").detach(), global_step=step
+        )
+        logger.add_images(
+            tag="input", img_tensor=x_in_t.to("cpu"), global_step=step
+        )
+
+        # logger.add_embedding(
+        #     torch.rand_like(mean),  global_step=step
+        # )
+               
 
         # add a loss-function
 
@@ -169,7 +203,7 @@ plotoutput(x_in_t, x)
 
 fig, ax = plt.subplots(1,2)
 ax[0].plot(reclosses)
-ax[0].set_title("Reconstruction loss")
+ax[0].set_title("Reconstruction loss")   
 ax[1].plot(kllosses)
 ax[1].set_title("KL loss")
 
@@ -188,3 +222,9 @@ ax[1].set_title("KL loss")
 # conda activate embed_time
 # python scripts/train.py
 # control + b, d # detach from session
+
+
+# 
+#latent_space = torch.stack([d.out.z.flatten() for d in predictions]).numpy()
+
+# -> get latent space into pandas dataframe 
