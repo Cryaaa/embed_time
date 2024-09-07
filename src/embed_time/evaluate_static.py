@@ -135,7 +135,7 @@ class ModelEvaluator():
                 
                 total_loss += loss.item()
                 total_mse += RECON.item()
-                total_kld += RECON.item()
+                total_kld += KLD.item()
                 
                 if batch_idx == 0:
                     self._save_image(data, recon_batch, self.config['output_dir'])
@@ -152,8 +152,8 @@ class ModelEvaluator():
                     all_latent_vectors.append(mu.cpu())
                     all_metadata.extend(zip(*metadata))
         
-        avg_loss = total_loss / len(dataloader.dataset)
-        avg_mse = total_mse / len(dataloader.dataset)
+        avg_loss = total_loss / len(dataloader)
+        avg_mse = total_mse / len(dataloader)
         avg_kld = total_kld / len(dataloader.dataset)
         latent_vectors = torch.cat(all_latent_vectors, dim=0)
         
@@ -219,10 +219,10 @@ class ModelEvaluator():
     def create_pca_plots(self, train_latents, val_latents):
 
         # Step 0: split the datasets into label data and latent data
-        train_df = train_latents[['gene', 'barcode', 'stage']]
-        val_df = val_latents[['gene', 'barcode', 'stage']]
-        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage'])
-        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage'])
+        train_df = train_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        val_df = val_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
+        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
 
         # Step 1: Perform PCA
         pca = PCA(n_components=2)
@@ -282,10 +282,10 @@ class ModelEvaluator():
     def create_umap_plots(self, train_latents, val_latents):
         
         # Step 0: split the datasets into label data and latent data
-        train_df = train_latents[['gene', 'barcode', 'stage']]
-        val_df = val_latents[['gene', 'barcode', 'stage']]
-        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage'])
-        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage'])
+        train_df = train_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        val_df = val_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
+        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
 
         # Scale the data
         Scaler = StandardScaler()
@@ -349,10 +349,10 @@ class ModelEvaluator():
         from sklearn.ensemble import RandomForestClassifier
         from sklearn.metrics import accuracy_score, confusion_matrix
         # Step 0: split the datasets into label data and latent data
-        train_df = train_latents[['gene', 'barcode', 'stage']]
-        val_df = val_latents[['gene', 'barcode', 'stage']]
-        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage'])
-        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage'])
+        train_df = train_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        val_df = val_latents[['gene', 'barcode', 'stage', 'cell_idx']]
+        train_latents = train_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
+        val_latents = val_latents.drop(columns=['gene', 'barcode', 'stage', 'cell_idx'])
 
         # Scale the data
         Scaler = StandardScaler()
@@ -377,12 +377,13 @@ class ModelEvaluator():
         # Convert 'gene' to categorical and get codes
         train_df['gene'] = pd.Categorical(train_df['gene'])
         val_df['gene'] = pd.Categorical(val_df['gene'])
-        # train_gene_codes = train_df['gene'].cat.codes
-        # val_gene_codes = val_df['gene'].cat.codes
+
+        # Calculate percentages for cm
+        cm_percentage = (cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]) * 100
 
         # Print the accuracy and confusion matrix
         plt.figure()
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+        sns.heatmap(cm_percentage, annot=True, fmt='.2f', cmap='Blues',
                     xticklabels=val_df['gene'].cat.categories,
                     yticklabels=val_df['gene'].cat.categories)
         plt.title('Confusion Matrix', fontsize=20)

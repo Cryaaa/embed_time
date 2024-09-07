@@ -139,7 +139,7 @@ def loss_function(recon_x, x, mu, logvar, loss_type=loss_type):
         x_norm = (x - x.min()) / (x.max() - x.min())
         recon_x_norm = (recon_x - recon_x.min()) / (recon_x.max() - recon_x.min())
         ssim = loss_ssim(recon_x_norm, x_norm)
-        RECON = F.l1_loss(recon_x, x, reduction='mean') + ssim * 0.5
+        RECON = F.l1_loss(recon_x, x, reduction='mean') + ssim * alpha
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     return RECON, KLD   
 

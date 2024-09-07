@@ -17,7 +17,7 @@ def get_checkpoint_dirs():
         return ''
     
     checkpoint_dirs = sorted(checkpoint_dirs, key=lambda x: get_timestamp(x))
-    checkpoint_dirs = [d for d in checkpoint_dirs if get_timestamp(d) > '20240903_2130']
+    checkpoint_dirs = [d for d in checkpoint_dirs if get_timestamp(d) > '20240903_2100']
     print("number of checkpoints:", len(checkpoint_dirs))
 
     return checkpoint_dirs
