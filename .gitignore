@@ -6,9 +6,6 @@
 **/mnist_data/
 **/data/
 **/mnist_data/
-/notebooks/splits
-/scripts/embed_time_runs
-/scripts/graphs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -136,5 +133,12 @@ pyrepo
 .DS_Store
 
 #logs
-embed_time_runs/
-embed_time_static_runs/
+/scripts/embed_time_static_runs_old/
+/scripts/embed_time_static_runs/
+/scripts/embed_time_runs
+/scripts/graphs
+/scripts/latent/
+
+/notebooks/cellprofiler_benchmark_static/
+/notebooks/dataset/
+/notebooks/static/
