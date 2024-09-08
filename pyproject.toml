@@ -46,24 +46,14 @@ dev = [
     "pandas",
     "torchview",
     "graphviz", 
+    "pandas",
+    "scikit-image",
+    "tifffile",
+    "torchvision",
+    "tqdm",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
-    "pandas",
-    "tifffile",
-    "torch",
-    "torchvision",
-    "scikit-image",
-    "matplotlib",
-    "tqdm",
-    "pathlib"
-    "torch"
-    "zarr",
-    "numpy",
-    "json",
-    "pytorch",
-    "matplotlib",
-    "pandas"
+    "pytest",
 ]

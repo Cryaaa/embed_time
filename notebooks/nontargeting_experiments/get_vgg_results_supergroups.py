@@ -22,9 +22,12 @@ def plot_metrics(metrics):
     metrics.plot(subplots=True, figsize=(10, 10))
     plt.show()
 
-def load_best_checkpoint(directory, metrics):
+def load_best_checkpoint(directory, metrics, metric="val_accuracy", mode="max"):
     # get epoch in metric with highest val_accuracy
-    best_index = metrics['val_accuracy'].idxmax()
+    if mode == "max":
+        best_index = metrics[metric].idxmax()
+    else:
+        best_index = metrics[metric].idxmax()
     best_epoch = metrics['epoch'][best_index]
     checkpoint = directory / f"{best_epoch}.pth"
     return checkpoint
@@ -93,7 +96,7 @@ def create_dataloader(dataset, label_type, batch_size=16, num_workers=8, balance
 
 # %% Setup happens here
 dataset = "benchmark_nontargeting_barcode_with_cct2"
-label_type =  "gene"  # 'gene'
+label_type =  "barcode"  # 'gene'
 batch_size = 16
 num_workers = 8
 balance_dataset = True  # False
@@ -121,8 +124,8 @@ sns.heatmap(normalized_cm, annot=True, fmt='.2f', cmap='Blues')
 plt.xlabel('Predicted')
 plt.ylabel('True')
 # Set tick labels
-plt.xticks(np.arange(num_classes) + 0.5, class_names)
-plt.yticks(np.arange(num_classes) + 0.5, class_names)
+# plt.xticks(np.arange(num_classes) + 0.5, class_names)
+# plt.yticks(np.arange(num_classes) + 0.5, class_names)
 plt.show()
 
 # %% 

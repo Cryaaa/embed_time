@@ -20,9 +20,9 @@ images_keys = ['cell_image']
 crop_size = 96
 normalizations = v2.Compose([v2.CenterCrop(crop_size)])
 yaml_file_path = "/mnt/efs/dlmbl/G-et/yaml/dataset_info_20240901_155625.yaml"
-dataset = "benchmark_nontargeting_barcode"
+dataset = "benchmark_nontargeting_barcode_with_cct2"
 csv_file = f"/mnt/efs/dlmbl/G-et/csv/dataset_split_{dataset}.csv"
-label_type = 'barcode'
+label_type = 'gene'
 balance_classes = True
 
 save_dir = Path(f"/mnt/efs/dlmbl/G-et/da_testing/vgg2d_{dataset}/{label_type}_{balance_classes}")
@@ -37,7 +37,7 @@ print(f"Class names: {class_names}")
 # Hyperparameters
 batch_size = 16
 num_workers = 16
-epochs = 30
+epochs = 10
 
 # %% Load the training dataset
 # Create the dataset
@@ -100,7 +100,8 @@ val_dataset = ZarrCellDataset(
 val_dataloader = DataLoader(
     val_dataset, 
     batch_size=batch_size, 
-    shuffle=True, 
+    shuffle=False, 
+    drop_last=False,
     num_workers=num_workers,
     collate_fn=collate_wrapper(metadata_keys, images_keys)
 )
@@ -179,14 +180,14 @@ for epoch in range(epochs):
     torch.save(state_dict, save_dir / f"{epoch}.pth")
 
 
-# %% Plot the loss
-plt.plot(losses, label="Train")
-plt.plot(val_losses, label="Validation")
-plt.legend()
-plt.show()
-plt.plot(val_accuracies, label="Validation accuracy")
-plt.legend()
-plt.show()
+# # %% Plot the loss
+# plt.plot(losses, label="Train")
+# plt.plot(val_losses, label="Validation")
+# plt.legend()
+# plt.show()
+# plt.plot(val_accuracies, label="Validation accuracy")
+# plt.legend()
+# plt.show()
 
 # %% Save the losses and accuracies
 with open(save_dir / "metrics.csv", "w") as f:
