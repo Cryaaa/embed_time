@@ -169,14 +169,14 @@ df_lat = pd.DataFrame(
 df_lat['Time'] = timepoints
 df_lat['Raft'] = rafts
 
-df_lat.to_csv(Path(tabular_data) / "20240904_Resnet_20z_LatentSpace_Norm_Maksed_+aug_sox2only_ij.csv",
+df_lat.to_csv(Path(tabular_data) / "20240904_Resnet_20z_LatentSpace_Norm_Masked_+aug_sox2only_ij.csv",
               index=False)
 
 # %%
 
 # Only run if loading df_lat from saved csv file.
 tabular_data = "/mnt/efs/dlmbl/G-et/tabular_data"
-df_lat = pd.read_csv(Path(tabular_data) / "20240902_Resnet_20z_LatentSpace_Norm_ij.csv")
+df_lat = pd.read_csv(Path(tabular_data) / "20240904_Resnet_20z_LatentSpace_Norm_Masked_+aug_sox2only_ij.csv")
 
 # %%
 timepoints = df_lat['Time'].tolist()
@@ -257,7 +257,9 @@ raft_dict = {}
 for img_name in os.listdir(folder_imgs):
     raft_num = str(img_name)[-7:-4]
     img = io.imread(Path(folder_imgs) / img_name)
-    img = img[:, 1].flatten()
+    img = img[:, 1]
+    img = img[img > 0]
+    img = img.flatten()
     hull_area = np.sum(img > 0)
 
     per_25 = np.percentile(img, 25)
@@ -287,10 +289,6 @@ for raft in rafts:
 print(len(ent_list))
 
 # %%
-
-# Create UMAP
-umap_transformer = umap.UMAP(n_neighbors = 30)
-umap_out = umap_transformer.fit_transform(df_lat)
 
 umap_df = pd.DataFrame(umap_out,columns=["UMAP_1","UMAP_2"])
 umap_df["Time"] = timepoints
@@ -433,7 +431,7 @@ sm.set_array([])
 cbar = plt.colorbar(sm, ax=scatter.axes)
 
 # %%
-umap_df.to_csv(Path(tabular_data) / "20240903_Resnet_20z_LatentSpace_Norm_+aug_sox2only_ij_umap.csv",
+umap_df.to_csv(Path(tabular_data) / "20240904_Resnet_20z_LatentSpace_Norm_Masked_+aug_sox2only_ij_umap.csv",
               index=False)
 
 # %%
