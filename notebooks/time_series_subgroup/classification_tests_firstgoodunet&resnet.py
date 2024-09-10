@@ -104,6 +104,7 @@ for name, diction in results.items():
         all_data.append(pd.DataFrame({"Accuracy":scores,"Classifier":np.full(len(scores), k),"Feature Set":np.full(len(scores), name)}))
     
 all_classifier_results_df = pd.concat(all_data,axis=0,ignore_index=True)
+all_classifier_results_df.to_csv(Path(tabular_data)/"classification results first good latent spaces.csv")
 all_classifier_results_df
 # %%
 import matplotlib as mpl

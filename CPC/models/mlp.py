@@ -13,7 +13,13 @@ class MLP(nn.Module):
         last = nn.Linear(n_hidden_dims, n_classes)
         self.layers.append(last)
 
+        self.activation = nn.ReLU()
+        self.final_activation = nn.Softmax(1)
+        
+
     def forward(self, x):
         for layer in self.layers[:-1]:
             x = layer(x)
-        return self.layers[-1](x)
+            x = self.activation(x)
+        x = self.layers[-1](x)
+        return self.final_activation(x)

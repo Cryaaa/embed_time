@@ -109,12 +109,17 @@ def train(
     device,
     checkpoint_dir,
     patience,
+    metadata_training = None,
 ):
     patience_counter = 0
     best_loss = torch.inf
     checkpoint_dir = get_next_version(checkpoint_dir)
     writer = SummaryWriter(checkpoint_dir)
-
+    if metadata_training is not None:
+        torch.save(
+            metadata_training,
+            os.path.join(checkpoint_dir, "metadata_training.pt"),
+        )
     encoder = encoder.to(device)
     ar_model = ar_model.to(device)
     query_weights = query_weights.to(device)
@@ -188,7 +193,7 @@ def train(
                         break
     except KeyboardInterrupt:
         print(f"Keyboard interrupt")
-    print(f"{epoch} epochs. Version {checkpoint_dir.split("_")[-1]}")
+    print(f"{epoch} epochs. Version {checkpoint_dir.split('_')[-1]}")
 
 if __name__ == "__main__":
     transform = torchvision.transforms.RandomCrop(crop_size)
