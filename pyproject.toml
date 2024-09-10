@@ -36,9 +36,9 @@ dev = [
     "scikit-image",
     "matplotlib",
     "tqdm",
-    "pathlib"
+    "pathlib",
     "torch",
-    "tensorboard"
+    "tensorboard",
     "zarr",
     "numpy",
     "torch",
@@ -50,7 +50,7 @@ dev = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest"
+    "pytest",
     "pandas",
     "tifffile",
     "torch",
@@ -58,8 +58,8 @@ dev = [
     "scikit-image",
     "matplotlib",
     "tqdm",
-    "pathlib"
-    "torch"
+    "pathlib",
+    "torch",
     "zarr",
     "numpy",
     "json",
