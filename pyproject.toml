@@ -25,27 +25,6 @@ dependencies = [
     "matplotlib",
     "tqdm",
     "pathlib",
-    "torch",
-]
-[project.optional-dependencies]
-dev = [
-    "pandas",
-    "tifffile",
-    "torch",
-    "torchvision",
-    "scikit-image",
-    "matplotlib",
-    "tqdm",
-    "pathlib",
-    "torch",
-    "tensorboard",
-    "zarr",
-    "numpy",
-    "torch",
-    "matplotlib",
-    "pandas",
-    "torchview",
-    "graphviz", 
 ]
 
 [project.optional-dependencies]
@@ -59,11 +38,10 @@ dev = [
     "matplotlib",
     "tqdm",
     "pathlib",
-    "torch",
     "zarr",
     "numpy",
     "json",
-    "pytorch",
-    "matplotlib",
-    "pandas",
+    "torchview",
+    "graphviz",
+    "tensorboard",
 ]
