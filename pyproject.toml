@@ -24,8 +24,8 @@ dependencies = [
     "scikit-image",
     "matplotlib",
     "tqdm",
-    "pathlib"
-    "torch"
+    "pathlib",
+    "torch",
 ]
 [project.optional-dependencies]
 dev = [
@@ -65,5 +65,5 @@ dev = [
     "json",
     "pytorch",
     "matplotlib",
-    "pandas"
+    "pandas",
 ]
