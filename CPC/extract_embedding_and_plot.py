@@ -22,8 +22,8 @@ data_location = Path(r"D:\Data\DLMBL")
 table_location = data_location / "tabular_data"
 table_location.mkdir(exist_ok=True)
 
-version = 1
-model_name = "ben_model_04_masked_BF"
+version = 0
+model_name = "ben_model_04_masked_BRA"
 out_tabular_data = table_location / model_name
 out_tabular_data.mkdir(exist_ok=True)
 out_tabular_data = out_tabular_data / f"version_{str(version)}"
@@ -63,7 +63,7 @@ annotations = data_location / 'Control_Dataset_4TP_Ground_Truth'
 
 loading_transforms = trans.Compose([
     CropAndReshapeTL(1,0,598,0),
-    SelectChannel(0,0),
+    SelectChannel(1,0),
     CustomToTensor(dtype=torch.float),
     v2.Resize((576,576)),
 ])
