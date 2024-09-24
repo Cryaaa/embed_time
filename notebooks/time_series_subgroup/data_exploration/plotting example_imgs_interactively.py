@@ -8,23 +8,30 @@ from datetime import datetime
 from pathlib import Path
 
 
-data_location = Path("/mnt/efs/dlmbl/G-et/data/live-TLS")
+data_location = Path(r"D:\Data\DLMBL")
 
-folder_imgs = data_location / 'Control_Dataset_4TP_Normalized_Across_Plates'
 metadata = data_location / 'Control_Dataset_4TP_Ground_Truth'
+out = data_location / 'Control_Dataset_4TP_Composites_Masked'
+folder_imgs =  data_location / 'Control_Dataset_4TP_Normalized_wMask'
+
+# %%
+from embed_time.interactive_plots import get_dash_app_2D_scatter_hover_images
+import pandas as pd
+table_location = data_location / "tabular_data"
+version = 3
+model_name = "ben_model_04_masked"
+out_tabular_data = table_location / model_name
+out_tabular_data.mkdir(exist_ok=True)
+
+data = pd.read_csv(
+    out_tabular_data / f"version_{version}" / "context_dimensions_table.csv"
+)
 # %%
 loading_transforms = trans.Compose([
     CropAndReshapeTL(1,0,598,0),
     CustomToTensor(),
-    #ColorJitterBrightfield(0.5,0.3,0,0),
     v2.Resize((576,576)),
-    #v2.RandomAffine(
-    #     degrees=90,
-    #     translate=[0.1,0.1],
-    # ),
-    #v2.RandomHorizontalFlip(),
-    #v2.RandomVerticalFlip(),
-    # v2.GaussianNoise(0,0.2,clip=True)
+
 ])
 
 dataset_w_t = LiveTLSDataset(
@@ -35,29 +42,6 @@ dataset_w_t = LiveTLSDataset(
     metadata_columns=["Run","Plate","ID","Axes","Image Name"]
 )
 
-
-from tifffile import imwrite
-out = Path(data_location) / 'Control_Dataset_4TP_Composites'
-
-# %%
-from skimage.io import imshow
-
-# %%
-import numpy as np
-
-# %%
-from embed_time.interactive_plots import get_dash_app_2D_scatter_hover_images
-import pandas as pd
-table_location = Path("/mnt/efs/dlmbl/G-et/tabular_data")
-version = 1
-model_name = "ben_model_03_pp_norm"
-out_tabular_data = table_location / model_name
-out_tabular_data.mkdir(exist_ok=True)
-
-data = pd.read_csv(
-    out_tabular_data / f"version_{version}" / "context_dimensions_table.csv"
-)
-# data= data[data["Time"]>=2]
 # %%
 all_metdat = {
     key : [mtdt[i] for _,_,mtdt in dataset_w_t]
@@ -85,10 +69,11 @@ umap_latents = pd.concat([umap_latents,data[["Run","ID","Dev Outcome","Time","Ax
 
 # %%
 from skimage.io import imread
+import numpy as np
+
 plot_imgs = np.array([imread(out/file) for file in data_w_files["Image Name"]]).astype("uint8")[:,:,:,:3]
 print(plot_imgs.shape)
-import sys
-#sys.exit()
+
 # %%
 data
 
@@ -102,8 +87,29 @@ app = get_dash_app_2D_scatter_hover_images(
     image_size = 1000,
 )
 
-
 app.run(debug=True)
 # %%
-print("here")
+composite_tl = data_location / 'Control_Dataset_4TP_Composites_Masked_tl'
+
+plot_imgs_single_tp = np.array(
+    [
+        imread(composite_tl/file)[tp] 
+        for file,tp in data_w_files[
+            ["Image Name","Time"]
+        ].to_numpy()
+    ]
+).astype("uint8")[:,:,:,:3]
+print(plot_imgs_single_tp.shape)
+# %%
+
+app = get_dash_app_2D_scatter_hover_images(
+    dataframe=umap_latents,
+    plot_keys=["UMAP_1","UMAP_2"], 
+    hue = "Unique Plate",
+    images = plot_imgs_single_tp,
+    additional_info = "Dev Outcome",
+    image_size = 400,
+)
+
+app.run(debug=True,jupyter_mode="external")
 # %%
