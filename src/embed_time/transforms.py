@@ -109,13 +109,20 @@ class SelectSpecificTimepoint(object):
         ]
         return sample[slice_objects]
 
+class SelectChannel(object):
+    def __init__(self,channel,channel_dim = 0):
+        self.channel = channel
+        self.channel_dim = channel_dim
+
+    def __call__(self, sample):
+        return np.take(sample,[self.channel],axis=self.channel_dim)
+    
 class SelectRandomTPNumpy(object):
     """select a random timepoint form the time series
 
     time_dimension: int
         dimension index of time 
     """
-
     def __init__(self, time_dimension):
         self.td = time_dimension
         

@@ -5,7 +5,7 @@ from models.convnext import ConvNeXt
 import train
 import torchvision.transforms as trans
 from torchvision.transforms import v2
-from embed_time.transforms import CustomToTensor, CropAndReshapeTL
+from embed_time.transforms import CustomToTensor, CropAndReshapeTL, SelectChannel
 from embed_time.dataloader_rs import LiveTLSDatasetPairedOutput
 from datetime import datetime
 from pathlib import Path
@@ -23,14 +23,6 @@ convnext_dims = [16, 32, 64, 128]
 in_channels =1
 lr = 4e-4
 
-
-class SelectChannel(object):
-    def __init__(self,channel,channel_dim = 0):
-        self.channel = channel
-        self.channel_dim = channel_dim
-
-    def __call__(self, sample):
-        return np.take(sample,[self.channel],axis=self.channel_dim)
 
 model_training_settings = dict(
     GPU = GPU,
