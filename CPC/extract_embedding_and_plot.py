@@ -7,7 +7,7 @@ import torchvision.transforms as trans
 import numpy as np
 import torch
 import torchvision
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from pathlib import Path
 from umap import UMAP
@@ -18,22 +18,24 @@ from models.nn import ShiftedConv
 from models.convnext import ConvNeXt
 import cpc
 from pathlib import Path
+data_location = Path(r"D:\Data\DLMBL")
+table_location = data_location / "tabular_data"
+table_location.mkdir(exist_ok=True)
 
-table_location = Path("/mnt/efs/dlmbl/G-et/tabular_data")
 version = 3
-model_name = "ben_model_03_pp_norm"
+model_name = "ben_model_04_masked"
 out_tabular_data = table_location / model_name
 out_tabular_data.mkdir(exist_ok=True)
 out_tabular_data = out_tabular_data / f"version_{str(version)}"
 out_tabular_data.mkdir(exist_ok=True)
 
-base_dir = "/mnt/efs/dlmbl/G-et/checkpoints/time-series"
+base_dir = data_location / "checkpoints"
 
 
 GPU = 0
 seed = 1
  # first training this will be zero
-checkpoint_dir = Path(base_dir) / f"2024-09-03_{model_name}_checkpoints/version_{str(version)}"
+checkpoint_dir = Path(base_dir) / f"2024-09-23_{model_name}_checkpoints/version_{str(version)}"
 
 # %%
 batch_size =16
@@ -48,23 +50,20 @@ n_time =parameters['n_time']
 latent_dims =parameters['latent_dims']
 convnext_dims =parameters['convnext_dims']
 in_channels = parameters['in_channels']
-latent_dims = 16
+latent_dims = parameters["latent_dims"]
 
 # %%
 torch.manual_seed(seed)
 device = torch.device(f"cuda:{str(GPU)}")
 
 
-
-data_location = "/mnt/efs/dlmbl/G-et/data/live-TLS"
-
-folder_imgs = data_location +"/"+'Control_Dataset_4TP_Normalized_Across_Plates'
-annotations = data_location + "/" +'Control_Dataset_4TP_Ground_Truth'
+folder_imgs = data_location / 'Control_Dataset_4TP_Normalized_wMask'
+annotations = data_location / 'Control_Dataset_4TP_Ground_Truth'
 
 
 loading_transforms = trans.Compose([
     CropAndReshapeTL(1,0,598,0),
-    CustomToTensor(),
+    CustomToTensor(dtype=torch.float),
     v2.Resize((576,576)),
 ])
 
@@ -273,6 +272,7 @@ def plot_3D_pca(
     ax.view_init(elev=30, azim=angle)
     plt.savefig(Path(output_location) / f"{prefix}_3D_pca_{name}.pdf",format="pdf")
     plt.tight_layout()
+    plt.close()
 # %%
 for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
     labels = np.max(np.array(pd.get_dummies(latents_df[label])) * np.arange(len(pca_latents[label].unique())),axis=1)
@@ -280,38 +280,38 @@ for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
     plot_3D_pca(pca_context,out_tabular_data,labels,label,"context",angle = 20)
 # %%
 
-tp=0
-print(tp)
-latents_df_tp = latents_df[latents_df["Time"] == tp].reset_index()
-scaled_latents = StandardScaler().fit_transform(latents[:,:,tp])
+for tp in range(4):
+    print(tp)
+    latents_df_tp = latents_df[latents_df["Time"] == tp].reset_index()
+    scaled_latents = StandardScaler().fit_transform(latents[:,:,tp])
 
-umap_latents = UMAP(n_neighbors=10).fit_transform(scaled_latents)
-umap_latents = pd.DataFrame(umap_latents,columns=["UMAP_1","UMAP_2"])
-umap_latents = pd.concat([umap_latents,latents_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
+    umap_latents = UMAP(n_neighbors=10).fit_transform(scaled_latents)
+    umap_latents = pd.DataFrame(umap_latents,columns=["UMAP_1","UMAP_2"])
+    umap_latents = pd.concat([umap_latents,latents_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
 
-pca_latents = PCA(n_components=3).fit_transform(scaled_latents)
-pca_latents = pd.DataFrame(pca_latents,columns = [f"PC_{i}" for i in range(3)])
-pca_latents = pd.concat([pca_latents,latents_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
+    pca_latents = PCA(n_components=3).fit_transform(scaled_latents)
+    pca_latents = pd.DataFrame(pca_latents,columns = [f"PC_{i}" for i in range(3)])
+    pca_latents = pd.concat([pca_latents,latents_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
 
 
-scaled_context = StandardScaler().fit_transform(context[:,:,tp])
-context_df_tp = context_df[context_df["Time"] == tp].reset_index()
-umap_context = UMAP(n_neighbors=10).fit_transform(scaled_context)
-umap_context = pd.DataFrame(umap_context,columns=["UMAP_1","UMAP_2"])
-umap_context = pd.concat([umap_context,context_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
+    scaled_context = StandardScaler().fit_transform(context[:,:,tp])
+    context_df_tp = context_df[context_df["Time"] == tp].reset_index()
+    umap_context = UMAP(n_neighbors=10).fit_transform(scaled_context)
+    umap_context = pd.DataFrame(umap_context,columns=["UMAP_1","UMAP_2"])
+    umap_context = pd.concat([umap_context,context_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
 
-pca_context = PCA(n_components=3).fit_transform(scaled_context)
-pca_context = pd.DataFrame(pca_context,columns = [f"PC_{i}" for i in range(3)])
-pca_context = pd.concat([pca_context,context_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
+    pca_context = PCA(n_components=3).fit_transform(scaled_context)
+    pca_context = pd.DataFrame(pca_context,columns = [f"PC_{i}" for i in range(3)])
+    pca_context = pd.concat([pca_context,context_df_tp[["Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
 
-for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
-    plot_and_save_umap(umap_latents,label,out_tabular_data,f"latents_tp{tp}")
-    plot_and_save_umap(umap_context,label,out_tabular_data,f"context_tp{tp}")
+    for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
+        plot_and_save_umap(umap_latents,label,out_tabular_data,f"latents_tp{tp}")
+        plot_and_save_umap(umap_context,label,out_tabular_data,f"context_tp{tp}")
 
-for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
-    labels = np.max(np.array(pd.get_dummies(pca_latents[label])) * np.arange(len(pca_latents[label].unique())),axis=1)
-    plot_3D_pca(pca_latents,out_tabular_data,labels,label,f"latents_tp{tp}",angle= 70)
-    plot_3D_pca(pca_context,out_tabular_data,labels,label,f"context_tp{tp}",angle=20)
+    for label in ["Dev Outcome","Time","Axes","Unique Plate"]:
+        labels = np.max(np.array(pd.get_dummies(pca_latents[label])) * np.arange(len(pca_latents[label].unique())),axis=1)
+        plot_3D_pca(pca_latents,out_tabular_data,labels,label,f"latents_tp{tp}",angle= 70)
+        plot_3D_pca(pca_context,out_tabular_data,labels,label,f"context_tp{tp}",angle=20)
 
 # %%
 plot_and_save_umap(umap_latents,label,out_tabular_data,f"latents_tp{tp}")
