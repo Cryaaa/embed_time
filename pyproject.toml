@@ -24,25 +24,14 @@ dependencies = [
     "scikit-image",
     "matplotlib",
     "tqdm",
+    "tensorboard",
     "pathlib",
-    "torch",
     "scikit-learn",
     "umap-learn",
     "seaborn",
+    "timm",
 ]
 [project.optional-dependencies]
 dev = [
-    "pandas",
-    "tifffile",
-    "torch",
-    "torchvision",
-    "scikit-image",
-    "matplotlib",
-    "tqdm",
-    "pathlib",
-    "torch",
-    "tensorboard",
-    "scikit-learn",
-    "umap-learn",
-    "seaborn",
+    "pytest",
 ]
