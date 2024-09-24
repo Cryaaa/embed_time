@@ -146,11 +146,14 @@ class CustomToTensor(object):
     """Custom ToTensor: works with any shape and does not normalisation
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, dtype = None):
+        self.dtype = dtype
 
     def __call__(self, sample):
-        return from_numpy(sample)
+        tensor = from_numpy(sample)
+        if self.dtype is not None:
+            return tensor.to(dtype=self.dtype)
+        return tensor
 
 class CustomCropCentroid(object):
     def __init__(self,intensity_channel, channel_dim,crop_size):
