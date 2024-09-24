@@ -1,6 +1,6 @@
 # %%
 import os
-from embed_time.transforms import CustomToTensor, CropAndReshapeTL
+from embed_time.transforms import CustomToTensor, CropAndReshapeTL, SelectChannel
 from embed_time.dataloader_rs import LiveTLSDatasetPairedOutput
 from torchvision.transforms import v2
 import torchvision.transforms as trans
@@ -22,8 +22,8 @@ data_location = Path(r"D:\Data\DLMBL")
 table_location = data_location / "tabular_data"
 table_location.mkdir(exist_ok=True)
 
-version = 3
-model_name = "ben_model_04_masked"
+version = 1
+model_name = "ben_model_04_masked_BF"
 out_tabular_data = table_location / model_name
 out_tabular_data.mkdir(exist_ok=True)
 out_tabular_data = out_tabular_data / f"version_{str(version)}"
@@ -35,7 +35,7 @@ base_dir = data_location / "checkpoints"
 GPU = 0
 seed = 1
  # first training this will be zero
-checkpoint_dir = Path(base_dir) / f"2024-09-23_{model_name}_checkpoints/version_{str(version)}"
+checkpoint_dir = Path(base_dir) / f"2024-09-24_{model_name}_checkpoints/version_{str(version)}"
 
 # %%
 batch_size =16
@@ -63,6 +63,7 @@ annotations = data_location / 'Control_Dataset_4TP_Ground_Truth'
 
 loading_transforms = trans.Compose([
     CropAndReshapeTL(1,0,598,0),
+    SelectChannel(0,0),
     CustomToTensor(dtype=torch.float),
     v2.Resize((576,576)),
 ])
