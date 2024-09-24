@@ -4,13 +4,15 @@ import torchvision.transforms as trans
 from torchvision.transforms import v2
 from embed_time.transforms import CustomToTensor, CropAndReshapeTL
 from embed_time.dataloader_rs import LiveTLSDataset
-from datetime import datetime
 from pathlib import Path
+import numpy as np
+from tqdm.auto import tqdm
+from skimage.io import imshow
+from tifffile import imwrite
 
+data_location = Path(r"D:\Data\DLMBL")
 
-data_location = Path("/mnt/efs/dlmbl/G-et/data/live-TLS")
-
-folder_imgs = data_location / 'Control_Dataset_4TP_Normalized_Across_Plates'
+folder_imgs = data_location / 'Control_Dataset_4TP_Normalized_wMask'
 metadata = data_location / 'Control_Dataset_4TP_Ground_Truth'
 # %%
 loading_transforms = trans.Compose([
@@ -40,8 +42,6 @@ image.shape
 
 
 # %%
-import os
-os.environ["DISPLAY"] = ":1001"
 import napari
 viewer = napari.Viewer()
 # %%
@@ -49,11 +49,11 @@ c_0 = torch.concat([image[0,i] for i in range(4)],1)
 c_1 = torch.concat([image[1,i] for i in range(4)],1)
 c_0.shape
 # %%
-viewer.add_image(c_0.numpy(),contrast_limits=[0,1])
-viewer.add_image(c_1.numpy(),contrast_limits=[0,1],blending="additive",colormap="red")
+viewer.add_image(c_0.numpy(),contrast_limits=[0,1.3])
+viewer.add_image(c_1.numpy(),contrast_limits=[0,1.3],blending="additive",colormap="red")
 
 # %%
-from tqdm.auto import tqdm
+
 screenshots = []
 for j in tqdm(range(len(dataset_w_t))):
     viewer.layers.clear()
@@ -61,7 +61,7 @@ for j in tqdm(range(len(dataset_w_t))):
     c_0 = torch.concat([image[0,i] for i in range(4)],1)
     c_1 = torch.concat([image[1,i] for i in range(4)],1)
     c_0.shape
-    viewer.add_image(c_0.numpy(),contrast_limits=[0,1])
+    viewer.add_image(c_0.numpy(),contrast_limits=[0,1.3])
     viewer.add_image(
         c_1.numpy(),
         contrast_limits=[0,1],
@@ -71,79 +71,55 @@ for j in tqdm(range(len(dataset_w_t))):
     screenshots.append(viewer.screenshot())
 
 # %%
-from tifffile import imwrite
-out = Path(data_location) / 'Control_Dataset_4TP_Composites'
+
+imshow(screenshots[0][530:920,180:2300])
+
+# %%
+
+out = Path(data_location) / 'Control_Dataset_4TP_Composites_Masked'
 out.mkdir(exist_ok=True)
 for j,screen in enumerate(screenshots):
     image, label, met_info = dataset_w_t[j]
     name = met_info[-1]
     print(name)
-    imwrite(out / name,screen[290:690,:])
-# %%
-from skimage.io import imshow
-imshow(screenshots[0][290:690])
-# %%
-import numpy as np
-screenshots_cropped = np.array(screenshots)[:,290:690,:]
-imshow(screenshots_cropped[0])
-# %%
-from embed_time.interactive_plots import get_dash_app_2D_scatter_hover_images
-import pandas as pd
-table_location = Path("/mnt/efs/dlmbl/G-et/tabular_data")
-version = 2
-model_name = "ben_model_03_pp_norm"
-out_tabular_data = table_location / model_name
-out_tabular_data.mkdir(exist_ok=True)
+    imwrite(out / name,screen[530:920,180:2300])
 
-data = pd.read_csv(
-    out_tabular_data / f"version_{2}" / "latent_dimensions_table.csv"
-)
-data
-# %%
-all_metdat = {
-    key : [mtdt[i] for _,_,mtdt in dataset_w_t]
-    for i,key in enumerate(["Run","Plate","ID","Axes","Image Name"])
-}
-all_metdat
-# %%
-id_to_file = pd.DataFrame(
-    all_metdat
-)
-# %%
-from sklearn.preprocessing import StandardScaler
-from umap import UMAP
-data_w_files = data.merge(id_to_file,on=["Run","Plate","ID"])
-data_w_files
+#%%
 
-scaled_latents = StandardScaler().fit_transform(
-    data.drop(
-        ["Run","ID","Dev Outcome","Time","Axes","Unique Plate"],
-        axis=1
-    ))
+screenshots_tl = []
+for j in tqdm(range(len(dataset_w_t))):
+    
+    image, label, met_info = dataset_w_t[j]
+    tl_composites = []
+    for i in range(4):
+        c_0 = image[0,i]
+        c_1 = image[1,i]
+        viewer.layers.clear()
+        viewer.add_image(
+            c_0.numpy(),
+            contrast_limits=[0,1.3]
+        )
+        viewer.add_image(
+            c_1.numpy(),
+            contrast_limits=[0,1],
+            blending="additive",
+            colormap="red"
+        )
+        tl_composites.append(viewer.screenshot())
+    screenshots_tl.append(tl_composites)
 
-umap_latents = UMAP(n_neighbors=10).fit_transform(scaled_latents)
-umap_latents = pd.DataFrame(umap_latents,columns=["UMAP_1","UMAP_2"])
-umap_latents = pd.concat([umap_latents,data[["Run","ID","Dev Outcome","Time","Axes","Unique Plate"]]],axis=1)
+screenshots_tl = np.array(screenshots_tl)
+screenshots_tl.shape
+#%%
 
+imshow(screenshots_tl[0][0][:,135:734])
 # %%
-from skimage.io import imread
-plot_imgs = np.array([imread(out/file) for file in data_w_files["Image Name"]]).astype("uint8")
-plot_imgs.shape
-# %%
-data
+composite_tl = Path(data_location) / 'Control_Dataset_4TP_Composites_Masked_tl'
+composite_tl.mkdir(exist_ok=True)
+for j,screen in enumerate(screenshots_tl):
+    image, label, met_info = dataset_w_t[j]
+    name = met_info[-1]
+    #print(name)
+    imwrite(composite_tl / name,screen[:,:,135:734])
 
-# %%
-app = get_dash_app_2D_scatter_hover_images(
-    dataframe=umap_latents,
-    plot_keys=["UMAP_1","UMAP_2"], 
-    hue = "Dev Outcome",
-    images = plot_imgs,
-    additional_info = "Unique Plate",
-    image_size = 500,
-)
-
-
-app.run(debug=True)
-# %%
-print("here")
 # %%
